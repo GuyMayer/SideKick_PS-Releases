@@ -17,6 +17,17 @@ SideKick_GC changes are tracked here alongside SideKick_PS from v2.5.53 onward.
 SideKick_GC can also run independently — its own CHANGELOG.md covers standalone releases.
 -->
 
+## v3.0.31 (2026-08-28) — Update channel moved to public releases repo
+
+### Fixed
+
+- **Downloads and auto-updates restored after the source repo went private.**
+  The git-leak remediation made `GuyMayer/SideKick_PS` private, which broke the
+  public release URLs (404). The release channel now lives in a public
+  `GuyMayer/SideKick_PS-Releases` repo holding only `version.json`, `CHANGELOG.md`,
+  and the installer asset. Auto-updater, downloader, and all fallback links point
+  at the public repo. Source repo stays private.
+
 ## Unreleased (2026-08-23) — PSA payment-line date ordering
 
 ### Improvements
