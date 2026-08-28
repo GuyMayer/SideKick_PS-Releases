@@ -1,0 +1,1293 @@
+# SideKick_PS Changelog
+
+## Requires AutoHotkey v1.1+
+<!--
+AI INSTRUCTIONS - When publishing a new version:
+1. Update this CHANGELOG.md with the new version entry
+2. Update version.json in this repo with:
+   - "version": new version number
+   - "build_date": current date (YYYY-MM-DD)
+   - "release_notes": brief summary
+   - "changelog": array of changes (NEW/FIX/IMPROVED prefixes)
+3. Commit and push both files to Git
+4. Run the build script to compile and create installer
+
+NOTE: SideKick_PS now includes SideKick_GC (GoCardless) as a unified package.
+SideKick_GC changes are tracked here alongside SideKick_PS from v2.5.53 onward.
+SideKick_GC can also run independently — its own CHANGELOG.md covers standalone releases.
+-->
+
+## Unreleased (2026-08-23) — PSA payment-line date ordering
+
+### Improvements
+
+- **`write_psa_payments.py` always date-orders the payments block**: every
+  write pass re-sorts ALL payment lines in the target order group by date
+  (earliest first) — entering an earlier-dated payment later no longer needs
+  manual delete/reorder in ProSelect. Backs the album up (`.bak`) before
+  writing and aborts if the line count changes during the sort.
+
+## Unreleased (2026-08-18) — DSA audit refactor wave
+
+Twelve findings from the automated DSA audit (2026-08-18), implemented
+test-first with per-fix commits (`ee88587`…`fc589a5`). Mostly internal
+restructuring; several latent bugs fixed along the way.
+
+### Refactoring
+
+- **Settings schema (F1)**: `LoadSettings`/`SaveSettings` now iterate a
+  declarative schema (`Inc_SettingsSchema.ahk`) instead of hand-paired
+  IniRead/IniWrite lists — load/save can no longer drift apart.
+- **Opportunity order fields (F2)**: `_build_opportunity_order_fields()`
+  replaces the duplicated payment-summary + product-text logic in the two
+  opportunity sync paths.
+- **Unified INI loader (F3)**: single cached `_load_ini_config()`; all four
+  config readers now resolve the same INI file.
+- **PSA thumbnail loading (F4)**: shared `_parse_psa_image_list`,
+  `_build_psa_source_paths`, `_extract_psa_thumbs` helpers in
+  `cardly_preview_gui.py`; each load mode is now a thin wrapper.
+- **Cardly recipient model (F5)**: one canonical internal recipient schema +
+  `to_cardly_recipient()` translation, used by both send paths.
+- **GHL stage vocabulary (F6)**: stage and hold-reason strings imported as
+  constants instead of hardcoded variants.
+- **Shared `psa_order` module (F7)**: OrderList read/decode + client/payment
+  field parsing centralized; five CLI scripts rewired with byte-identical
+  golden output.
+- **Build cache removal (F8)**: `$ForceRebuild` defaulted to `$true`, making
+  the whole cache layer unreachable — removed.
+- **Version single source (F9)**: `build_and_archive.ps1` reads `version.json`
+  when `-Version` is omitted and syncs it when given; `run_build.bat` no
+  longer hardcodes the version.
+- **Shared `ghl_media` module (F10)**: folder lookup/create + upload in one
+  module; `upload_file` now resolves `folder_name` to `parentId`.
+- **PaymentBlockEditor (F11)**: payment-block locate/create/insert/attribute
+  updates encapsulated; behavior pinned by byte-exact tests.
+- **Toolbar button registry (F12)**: `Inc_ToolbarButtons.ahk` is the single
+  source for button visibility/count/sections in `CreateFloatingToolbar`.
+
+### Bug Fixes found during the refactor
+
+- **Cardly addresses were never sanitised**: `sanitize_recipient` checked
+  internal keys (`address1`, `state`) after the dict was already translated
+  to Cardly keys (`address`, `region`) — streets and regions shipped
+  un-title-cased. Sanitisation now runs before translation (F5).
+- **Supplier sync set an invalid GHL stage**: `"Ready To Collect"` vs the
+  live pipeline's `"Ready for Collection"`, and hold-reason casing mismatched
+  the defined option (F6).
+- **App version showed "Unknown" in Python tools**: `version.json` had a
+  UTF-8 BOM and trailing JSON garbage, breaking `json.load` in
+  `sync_ps_invoice.py` (F9).
+- **`upload_file(folder_name=…)` silently ignored its folder** (F10).
+- **Toolbar width estimate drifted**: the count included LightBlue when not
+  installed and omitted the Production button entirely (F12).
+- **PSA "all thumbnails" mode crashed** on a missing local `sqlite3` import
+  and silently fell back to folder scanning (F4).
+- **License validation ran on every launch**: `Updates/LastCheckDate` was
+  saved but never loaded, resetting the 7-day gate (F1).
+
+## v3.0.30 (2026-08-03)
+
+### Bug Fixes (v3.0.30)
+
+- **Phone number format causing GHL invoice 422 rejection**: Local-format phone
+  numbers (e.g. UK `07948…`, US `212-555…`) were sent raw to the GHL invoice API
+  which requires E.164 format (`+447948…`). GHL returned 422 and the invoice was
+  silently not created. Fixed: phone numbers are now normalised to E.164 before
+  being sent. Strips spaces, dashes, dots, and parentheses; converts `00` prefix
+  to `+`; prefixes local numbers with the country dialling code.
+- **Country code auto-detected from Windows locale**: No configuration needed.
+  The Windows `GetUserGeoID` / `GetGeoInfoW` API returns the user's country
+  (e.g. `GB`, `US`) which is mapped to its ITU-T dialling code (`+44`, `+1`).
+  Override with `[Settings] PhoneCountryCode=+1` in `SideKick_PS.ini` if needed.
+  Numbers already in E.164 format pass through unchanged.
+
+---
+
+## v3.0.29 (2026-08-01)
+
+### Bug Fixes (v3.0.29)
+
+- **GHL invoice not created for phone-only contacts**: Contacts without an email
+  address were silently blocked from having a GHL invoice created. The email field
+  is optional in the GHL API — only `id`, `name` and optionally `phoneNo` are
+  required. Fixed: email absence is now logged as info and the invoice proceeds.
+  `email` is conditionally included in the payload only when present.
+- **Webhook not firing on re-syncs / order updates**: The `--update-invoice` code
+  path had no webhook call, so clients whose orders were updated (rather than
+  created fresh) never triggered a webhook POST. Fixed: webhook now fires on
+  successful invoice updates using the same guards as the new-sync path.
+
+---
+
+## v3.0.27 (2026-07-29)
+
+### Improved (v3.0.27)
+
+- **Order Webhook diagnostics**: When **Debug Logging** is enabled, the order sync webhook now logs full request and response detail to the standard `sync_debug_*.log` file (same file that gets auto-uploaded to Gist when **Auto-send activity logs** is on). Captures per attempt:
+  - Request: URL, method, contact ID, order ID, total, currency, GHL invoice/opportunity IDs, item count, auth header presence, full JSON payload
+  - Response (success or error): HTTP status code, reason phrase, elapsed ms, response URL, body (up to 2000 chars), Content-Type, Server, Content-Length
+  - Timeouts, connection errors, and unhandled exceptions logged with error type, message, and traceback
+  - Gated by the existing `DebugLogging` INI setting — nothing logged when debug mode is off
+- **Order Webhook error visibility**: When the webhook receiver returns a 4xx or 5xx HTTP response, SideKick now prints three info-only `[WEBHOOK] ⚠` lines to stdout (visible in the sync progress window):
+  - Status code + reason + elapsed time (e.g. `⚠ Server returned 500 Internal Server Error (245ms)`)
+  - First line of the server's error message body (up to 120 chars)
+  - Reassurance that the GHL invoice sync succeeded and only the webhook receiver failed (non-blocking)
+  - Does not interrupt the workflow — no modal dialog, no dismissal required
+
+---
+
+## v3.0.26 (2026-07-28)
+
+### New (v3.0.26)
+
+- **Order Sync Webhook (universal)**: SideKick_PS can now fire a fire-and-forget HTTP POST to a configurable webhook URL after every successful ProSelect invoice sync to GHL. The payload includes contact ID, order ID (`PS-{shoot_no}`), order total, currency, line items, and the GHL invoice/opportunity IDs. Configurable in **Settings → GHL Integration → Order Sync Webhook**. Leave blank to disable (default).
+  - Designed for pushing orders into QuickBooks, Zapier, Make, n8n, or any custom receiver.
+  - Fires on both single-order syncs and batch month-sync runs (0.5s spacing between POSTs in batch mode to protect downstream API rate limits).
+  - Skips no-sale orders (£0 total) so they don't generate empty invoices downstream.
+  - Receiver deduplication by `orderId` is assumed — safe to retry.
+  - Failures never block the sync; warnings print to console and debug log only.
+  - Currency auto-read from `[GoCardless] Currency` (default `GBP`).
+  - Optional `[GHL] OrderSyncAuthToken` for receivers requiring `Authorization: Bearer <token>`.
+
+### Improved (v3.0.26)
+
+- **Payment Calculator duration presets**: Added **6**, **12**, **18**, and
+  **24** buttons under **No. Payments**. Each button fills the payment count
+  for that duration using the selected recurrence (Monthly, Weekly, Bi-Weekly,
+  or 4-Weekly), then recalculates the instalment amount.
+- **Schedule Payments progress overlay**: Clicking "✓ Schedule Payments" now
+  shows a dark progress popup ("Scheduling payments…") and disables all action
+  buttons to prevent accidental double-clicks during PSA writes + script
+  reload. Buttons re-enable automatically on validation errors so the user can
+  correct and retry.
+- **Settings GUI 20% taller**: Window grew from `h750` to `h900` to give the GHL Integration tab room to breathe and accommodate the new webhook field without crowding. All five content panels (General, GHL, Hotkeys, File Management, License) scaled to match. Sidebar, content background, and bottom button bar all repositioned cleanly.
+
+---
+
+## v3.0.23 (2026-07-21)
+
+### New (v3.0.23)
+
+- **GoCardless stale-date recovery option - Start From Next Available Date**: When a plan is created late and original dates are now stale, the dialog now offers a new option to start from the next GoCardless-valid date and shift the full schedule forward together.
+
+### Bug Fixes (v3.0.23)
+
+- **Stale-date replay only deferred by one month**: The stale-date flow previously hard-coded `--bump-months 1`. It now computes the minimum whole-month shift needed from the original first payment date to reach the GoCardless lead-time cutoff before replaying the schedule.
+- **GoCardless-adjusted paylines not persisted to SideKick payment state**: After a stale-date adjustment, the in-memory/INI payment lines could remain out of sync with the newly created GoCardless schedule. The flow now updates `[PaymentLines] PaymentLine.N` and matching `[Payments]` keys so save/update/load routines use the adjusted dates consistently.
+
+---
+
+## v3.0.22 (2026-06-20)
+
+### New (v3.0.22)
+
+- **Multi-order support — Order Picker dialog**: Albums with more than one order group now show a `DarkOrderPicker` dropdown listing all orders (e.g. `Order 1 — Sonia Field (£540.00)`) and defaulting to the latest order. Replaces the previous multi-button `DarkMsgBox` pattern. Applies to both the GoCardless and Invoice toolbar flows.
+- **Order totals in picker**: `detect_psa_group.py` AMBIGUOUS output now includes the order balance as a third field per group (`id|name|total`). The picker label and the PayPlan Calculator hotkey button both display `(£XXX.XX)` alongside the order name.
+
+### Bug Fixes (v3.0.22)
+
+- **GoCardless mandate lookup pagination**: `_find_customer_by_email()` and `_find_customers_by_name()` now cursor-paginate through all customers. Previously only the first 50 results were searched, causing "mandate not found" for customers beyond page 1. The `email=` and `per_page=` query params are both rejected by this GoCardless account and have been removed.
+- **Replace PayPlan guard**: When the user selects any order beyond Order 1 in the GoCardless flow, `Replace PayPlan` is automatically overridden to `Add PayPlan` to prevent cancelling the shared mandate's existing plan.
+
+### Improved (v3.0.22)
+
+- **Mandate Active dialog — payment progress**: Plan info now shows `6/6 complete` or `3/6 paid` instead of just the plan name and amount, giving a clearer picture of payment status without opening the GoCardless dashboard.
+
+---
+
+## v3.0.21 (2026-05-29)
+
+### Bug Fixes (v3.0.21)
+
+- **GC interval detection**: `_infer_interval_days()` tolerance tightened from `<= 3` to `<= 1`. Monthly payment gaps of 30–31 days no longer falsely match as 28-day (4-weekly), preventing GoCardless schedules from drifting off the chosen day-of-month.
+- **GC stray one-off payment**: Removed amount check from `needs_split` logic. Rounding-adjusted first payments (e.g. £180.72 vs £180.58) no longer trigger a split into a standalone one-off + truncated schedule.
+- **GC stale date false positive**: `_paylines_need_bump()` changed `<=` to `<`. Payment dates exactly 4 calendar days away (the minimum GC allows) are no longer flagged as stale.
+- **Existing PayPlan detection**: Now only counts GoCardless DD payments when checking for an existing plan — credit card deposits and other methods no longer trigger the Replace/Add dialog.
+
+### New (v3.0.21)
+
+- **PSA pay period metadata**: `write_psa_payments.py` now writes the Payment Calculator's Recurring selection (`--meta recurring:Monthly`) and chosen day (`--meta pay_day:28th`) to `sk_ps_meta` table in the PSA. Enables forensic audit of intent vs actual dates.
+- **Pay 1st ASAP option**: When GC dates are stale, a new button splits the first payment as a one-off (GC picks earliest valid date) and creates an instalment schedule for the rest on their original dates. Added `--split-first-asap` CLI arg and `_GetEarliestGCDate()` helper.
+- **`_GetEarliestGCDate()`**: Returns today + 4 days in dd/MM/yyyy format for display in stale-date dialog.
+
+### Improved (v3.0.21)
+
+- Meta values space-sanitised (spaces → hyphens) to survive shell argument splitting during PSA writes.
+
+---
+
+## v3.0.20 (2026-04-25)
+
+### Bug Fixes (v3.0.20)
+
+- **Supplier status SSH query fix**: Remote DB query now passes the Python script via stdin (`python3 -`) instead of `python3 -c`, fixing a Windows SSH issue where multi-line scripts were broken into separate shell commands and failed silently.
+- **openclaw backfill pagination**: `backfill.js` `searchMessagesKQL()` was hard-capped at 25 results per folder due to `Math.min(top, 25)`. Now paginates using a `from` offset loop, fetching up to 200 emails per folder (300 total found vs 150 before).
+- **openclaw Loxley multi-shoot parsing**: `parser.js` now matches bare shoot numbers (`P26028P`) and name-only refs from multi-shoot order emails like `P26024p - P26025p - P26028P`. Previously only matched the `P26028P_LastName` format, causing multi-shoot orders to produce garbage job_refs.
+- **Supplier DB cleanup**: Removed garbage records with non-shoot job_refs (e.g. `"order value"`, `"Order Reference"`) left by the previous broken parser.
+
+---
+
+## v3.0.19 (2026-04-25)
+
+### New Features (v3.0.19)
+
+- **GHL Client Lookup — PSA file fallback**: When the open ProSelect album has no GHL client ID in its name, the lookup now reads the `.psa` file to extract the client's first name, last name, shoot number, and email. It searches GHL by email first, then shoot number, then full name before falling back to the Chrome scan dialog.
+- **GHL Client Lookup — title fallback**: If the PSA file cannot be read, the shoot number and last name are parsed directly from the ProSelect window title (e.g. `P25097P_Field`) and used for GHL search.
+- **Check Shoot Status — auto GHL lookup**: If the open album has no GHL client ID in its name, Check Shoot Status now automatically triggers the GHL Client Lookup flow first, then continues with the status check.
+- **Check Shoot Status — simplified job ref derivation**: Job ref is now derived purely from the (possibly just-updated) ProSelect window title, removing the redundant PSA filename parse.
+- **Check Shoot Status icon**: Updated to a clipboard-check icon across all three icon fonts (Phosphor / Font Awesome / Segoe) to better represent quality control.
+
+---
+
+## v3.0.18 (2026-04-24)
+
+### New Features (v3.0.18)
+
+- **Force re-evaluate opportunity stage** (Batch Actions): New checkbox passes `--batch-force-opp-stage` to the Python sync. When ticked, already-synced shoots (those with PSA sync metadata) are no longer skipped for the opportunity move — their stage is re-evaluated from the archive and updated in GHL. Invoice creation is still skipped for those shoots.
+- **No Sale pipeline stage routing**: Shoots where the ProSelect order total is £0 are now automatically routed to the `No Sale` stage in the Boudoir Production Pipeline instead of `New Order`. Applies to both new opportunity creation and moves of existing opportunities. Genuine no-sales (client attended, bought nothing) stay in No Sale on subsequent syncs.
+
+### Fixes (v3.0.18)
+
+- **Duplicate invoice dialog showed amount ÷ 100**: `check_existing_invoice` was dividing GHL invoice totals by 100 when `> 1000`, based on a stale assumption that the API returned pence. GHL invoice API returns pounds — division removed from `total`, `amount_due`, `amount_paid`, `amountPaid` (update path), and `amountDue` (final state re-fetch).
+- **DateTime pickers not hidden on tab switch**: `GenBatchMonthFrom`, `GenBatchMonthTo`, `GenBatchFromLabel`, and `GenBatchToLabel` were missing from `ShowSettingsTab`'s hide/show lists (replaced the old stale `GenBatchMonthLabel` / `GenBatchMonthPicker` references). Pickers now correctly hide when switching away from the General tab.
+- **Stage name Compleate → Complete**: Renamed `PRODUCTION_COMPLETE_STAGE` constant to `'Complete'`. Alias list updated to accept both `'compleate'` and `'complete'` so older PSA archive folders with the old spelling still resolve correctly.
+- **No Sale routing used wrong signal**: The initial implementation routed to No Sale when `payments_count == 0` (no payment transaction records), which incorrectly caught clients with a real order value but no payment entered yet. Changed to `order_total <= 0` — only genuine £0 orders go to No Sale.
+
+---
+
+## v3.0.17 (2026-04-22)
+
+### New Features (v3.0.17)
+
+- **Batch sync date range** (Settings → General → Batch Actions): The single "Month to process" picker has been replaced with a **From / To** pair. Selecting a range (e.g. January–March) chains one generate-XML + one Python sync call per month using `&&`, so any month failure halts the rest. Single-month behaviour is identical to before. The chosen range is persisted to `[Batch] MonthDateTo` in the INI file and validated on launch (From > To shows an error).
+
+### Fixes (v3.0.17)
+
+- **GHL invoice 400 when discount exceeds items total**: If a ProSelect order contains a discount or credit that is larger than the sum of all line items (e.g. a standalone £200 voucher with £0 product lines), GHL rejected the invoice payload with *"Invoice total amount must be greater than or equal to 0"*. The discount is now capped to the items total before being sent; a `[WARN]` line is written to the sync log when capping occurs. Applied to both the create and update invoice paths in `sync_ps_invoice.py`.
+- **GHL opportunity tags 422 — missing required fields**: The PUT `/opportunities/{id}` payload was built with only `tags` and `monetaryValue`, omitting `name` and `status` which the GHL v2 API treats as required. The call returned 422 with a response body that was not visible in logs. Fixed: `name` is now always included (fallback chain: `name` → `title` → `"Opportunity {id}"`), `status` defaults to `open` if absent, and the 422 response body is now written to the error log file.
+
+---
+
+## v3.0.16 (2026-04-18)
+
+### Fixes (v3.0.16)
+
+- **GHL contact/opp tag refresh overwrites unsaved selection**: Clicking 🔄 in the Settings GHL tab to refresh tags from GHL was silently reverting the ComboBox back to the previously-saved INI value. All four refresh handlers (`RefreshGHLTags`, `RefreshGHLTagsSilent`, `RefreshGHLOppTags`, `RefreshGHLOppTagsSilent`) were reading `Settings_GHLTags` / `Settings_GHLOppTags` globals instead of the live ComboBox state, so whatever tag the user had just selected was lost. Fixed by using `GuiControlGet` to read the current ComboBox value before rebuilding the list.
+
+---
+
+## v3.0.15 (2026-04-17)
+
+### Fixes (v3.0.15)
+
+- **GHL invoice unit-price double-multiplication**: `Extended_Price` in the ProSelect XML is a line total (unit × qty). The code was passing it directly to GHL as the unit `amount` field, so GHL multiplied by qty a second time — e.g. qty 21 × £2,310 = £48,510 instead of £2,310. Fixed by dividing back to the true unit price before building the GHL line item.
+- **LB icon visible on wrong settings tab**: The Light Blue icon and label in the Toolbar Shortcuts settings panel were missing from both the hide-all sweep and the Shortcuts show block in `ShowSettingsTab`, causing them to remain visible after switching to any other tab.
+
+### New Features (v3.0.15)
+
+- **Skip £0 paired extras toggle** (Settings → GHL): New toggle (default ON) that removes zero-price accessory lines (mats, frames, etc.) from GHL invoices when they share the same ProSelect Item ID as a priced parent line. Standalone £0 items are kept. Applies to new invoice, replace, and update flows.
+- **LB toolbar button hidden when LightBlue is not installed**: At startup SideKick_PS now detects whether LightBlue is installed (installed exe or sibling dev path). If not found, the LB toolbar button is not created and the LB row is hidden in the Toolbar Shortcuts settings tab.
+
+---
+
+## v3.0.14 (2026-04-16)
+
+### Fixes (v3.0.14)
+
+- **Menu delay minimum raised to 150ms**: The startup CPU benchmark previously set delays as low as 50ms on fast PCs, which caused toolbar button keystrokes to occasionally miss on fast machines. The calibrated minimum is now 150ms; slow PCs continue to use 200ms. The settings panel colour thresholds and tooltip text have been updated to match.
+- **Sort button initial state reflects randomised album**: The sort toggle previously initialised as 🔀 (click to randomise), implying the album was in filename order. Because albums are randomised automatically after loading, the button now initialises as 🔤 (click to sort by filename), accurately reflecting the current state from the start of every session.
+
+### Changed (v3.0.14)
+
+- **Schedule Payments no longer triggers GoCardless setup**: After injecting payment lines into the album, the payment calculator no longer attempts to look up a mandate or create a GoCardless plan automatically. The success dialog now prompts the user to click the **GoCardless toolbar button** to set up the Direct Debit, keeping the two workflows clearly separate.
+
+---
+
+## v3.0.12 (2026-03-24)
+
+### Fixes (v3.0.12)
+
+- **Replace PayPlan not cancelling old plan**: When the user clicked "Replace PayPlan", the `--cancel-plans` command ran but on `ERROR|` the code only showed a warning and continued to create the new plan — leaving both the old plan (e.g. Mirror) and the new one active on GoCardless. All four cancel-then-create paths (`Toolbar_GoCardless`, name-fallback, `GC_SearchMandate` in `SideKick_PS.ahk`, and `UpdatePS` in `Inc_Hotkeys.ahk`) now `return` immediately on cancel failure and also verify the result is `SUCCESS|` before proceeding.
+
+---
+
+## v3.0.11 (2026-03-24)
+
+### Fixes (v3.0.11)
+
+- **Sale completion GoCardless prompt "Could not find client email"**: The `UpdatePS` label's GoCardless section only checked two sources for the client email — the `GHL_ContactData` cache and `getAlbumData` XML email attribute — both of which can be empty when the album was opened without a prior GHL fetch. Now uses the same robust 3-tier fallback as `Toolbar_GoCardless:`: window title parsing for GHL contact ID (15+ alphanumeric segments) → PSA filename fallback via `SplitPath` on `GetAlbumPath()` → PSA SQLite `clientCode` and email fields → `FetchGHLData()` by discovered ID. The resolved `GHL_ContactData` is also cached so the subsequent `GC_ShowPayPlanDialog` call inherits it.
+- **GoCardless pay plan creation duplicated paylines**: `GC_ShowPayPlanDialog` built the `--clear-method` argument using `resultMethod` before that variable was assigned — it was only assigned 6 lines later. The empty `--clear-method ""` meant `write_psa_payments.py` never cleared existing GoCardless DD entries before writing the new ones, producing exact duplicates. Fixed by moving the `resultMethod` extraction (from the result JSON `"method"` field, with `ddPayMethod` fallback) above the `writeArgs` line where it is consumed.
+- **GoCardless `--clear-method` removing collected GoCardless deposits**: `--clear-method` matched by method name only, so a GoCardless DD deposit that was already collected (e.g. an upfront GoCardless payment recorded as "GoCardless DD" in the album) was treated the same as a future scheduled instalment and removed. The clearing logic now also checks each matching payment's `jdate`: entries with a **past or today** date are preserved (already collected); only entries with a **strictly future** date (upcoming DD plan instalments) are removed. Re-applying a plan never touches any payment that has already been processed.
+- **GoCardless `--clear-method ""` wiping all payments when method is empty**: Python's `"" in "Credit Card"` evaluates to `True`, so an empty `--clear-method` argument would match and delete every payment in the album — including any Cash or Credit Card deposit. Added a guard in `write_psa_payments.py`: if the method string is blank after stripping, clearing is skipped entirely and all existing payments are left intact.
+
+---
+
+## v3.0.10 (2026-03-23)
+
+### Fixes (v3.0.10)
+
+- **GoCardless payment injection erasing deposit**: `write_psa_payments.py` was called with `--clear` which blanket-deleted all payments in the album group before injecting the GoCardless instalment schedule. Because SideKick_GC only returns DD instalment lines (not the original deposit), today's cash/card downpayment was silently removed every time a pay plan was set up. Fixed by replacing `--clear` with `--clear-method "GoCardless DD"` — only existing GoCardless DD entries are removed; all other payment methods (cash, card, etc.) are preserved.
+
+---
+
+## v3.0.9 (2026-03-19)
+
+### Fixes (v3.0.9)
+
+- **GoCardless / Cardly "No Client Found" when Mirror window is active**: `WinGetTitle, psTitle, ahk_exe ProSelect.exe` can return a ProSelect sub-window title (e.g. "Mirror") instead of the main album window title when that sub-window has focus. The regex extraction then finds no `_ID` segment and the contact-ID lookup fails entirely. Fixed by adding a fast PSA-filename extraction step (via `SplitPath` on the `GetAlbumPath()` result) as the primary fallback in both `Toolbar_GoCardless:` and `Toolbar_Cardly:` — the PSA filename already contains the GHL ID and does not depend on the ProSelect window title at all. The slow SQLite `<clientCode>` lookup is retained as a final fallback. Cardly now also logs `albumContactId from psaPath` to the debug log.
+
+---
+
+## v3.0.8 (2026-03-13)
+
+### Fixes (v3.0.8)
+
+- **Cardly PSA path resolved too late**: `psaPath` was only initialised in the image-folder block, but the client ID SQLite fallback (which runs earlier) had always checked `psaPath != ""` — that condition was never true, so albums without a GHL ID in their filename could never have their contact resolved from the PSA. `GetAlbumPath()` via PSConsole is now called before both the `albumContactId` block and the image-folder block
+- **Cardly image folder \u2014 PSConsole promoted to primary source**: ProSelect's window title contains only a filename, not a full path, so `psaPath := albumMatch1` then `FileExist()` immediately failed. PSConsole `getAlbumData` is now the primary source; title parsing is kept as a fallback only
+- **Cardly folder-browse default folder**: When no image folder is auto-detected the `FileSelectFolder` dialog now opens pre-navigated to the album directory (derived from PSA path or PSConsole) rather than the system root
+
+### New Features (v3.0.8)
+
+- **Cardly diagnostic logging**: Every Cardly button press now writes a structured trace to the SideKick debug log — ProSelect title, `GetAlbumPath()` result, `albumContactId`, `orderExportsDir`, shoot number, GHL ID, resolved `imageFolder`, and `noAlbumMode` flag
+
+---
+
+## v3.0.7 (2026-03-13)
+
+### Fixes (v3.0.7)
+
+- **GoCardless stale client data**: `Toolbar_GoCardless:` was reusing `GHL_ContactData` from a previous album session without checking whether it matched the current album — if you clicked the GoCardless button after switching clients, it either used the wrong mandate or threw "No Client Found". Now always resolves the client ID from the album title / PSA file first, and re-fetches from GHL if the cached contact doesn't match (mirrors the existing Cardly / print path behaviour)
+- **GoCardless duplicate payment on delayed submission**: When a payment plan was set up in ProSelect but GoCardless submission was delayed by several days, the instalment schedule dates could fall inside the BACS lead-time window, causing a double-charge on the nearest valid date. The CLI now detects stale dates before creating any plan and emits `DATES_STALE` so SideKick_PS can offer the user a one-month date bump — same amounts, same day-of-month, just one month later (preserving client affordability)
+- **`--bump-months N` CLI flag (SideKick_GC v1.2.2)**: After user confirms the date bump, SideKick_PS re-submits with shifted paylines and `--bump-months 1` to bypass the stale-date check on the retry
+
+---
+
+## v3.0.6 (2026-03-12)
+
+### Fixes (v3.0.6)
+
+- **Print-to-PDF printer not switching**: `Control, Choose` only updated the visual selection in the print dialog's printer list — replaced with `ControlSend {Home}/{Down}` keyboard navigation which triggers the dialog's internal WM_NOTIFY so the printer actually changes
+- **PDF button printing to paper**: Caused by the above — printer was not switching to "Microsoft Print to PDF" before clicking Print
+- **Print button wrong target**: `ControlClick, Button1` was hitting "Preferences" instead of Print — replaced with a loop that reads each button's text via `ControlGetText` and clicks the exact button labelled "&Print"
+- **Save As filename wrong**: `SplitPath` was going up two levels from the album folder, picking up a year/date folder name — fixed to use the album folder name directly, with a known-subfolder guard for "Unprocessed" etc.
+- **Save As text field not populating**: `ControlSetText` is unreliable in Windows file dialogs — switched to clipboard paste (`Ctrl+A`, `Ctrl+V`)
+- **PDF email wrong template used**: `Settings_PDFEmailTemplateID` was unconditionally cleared to `""` in both Settings Apply handlers before re-matching against the cache — if the template cache was empty that session the ID was lost, causing the wrong (or no) template to be sent. Now only re-looked up when the cache is populated; existing saved ID is preserved otherwise
+
+---
+
+## v3.0.5 (2026-03-12)
+
+### New Features (v3.0.5)
+
+- **Selection-first image loading (Cardly)**: When images are selected in ProSelect, the Cardly preview loads only those selected images instead of the full album — significantly faster startup
+- **Duplicate card warning (Cardly)**: Clicking Send now checks for cards sent to the same recipient in the last 7 days and shows a confirmation dialog with order details and a link to the Cardly orders page
+- **GHL note on card send (Cardly)**: A note is automatically added to the GHL contact after a card is successfully sent, including the recipient name and message body
+
+### Fixes (v3.0.5)
+
+- **False "card sent" toast (Cardly)**: Cancelling the Cardly preview no longer shows a "card sent" system notification — replaced unreliable AHK exit code check with a signal file approach
+
+---
+
+## v3.0.4 (2026-03-11)
+
+### New Features (v3.0.4)
+
+- **Auto name-fallback for GoCardless**: When the client's email doesn't match a GoCardless customer, SideKick automatically retries by name. If a mandate is found under a different email, a "Same Client?" confirmation dialog shows both GHL and GoCardless details side-by-side — choose Yes to proceed, No to search manually, or Cancel
+- **Single payment support**: GoCardless DD payments with only 1 payment now use a one-off `create_payment` instead of an instalment schedule with count=1
+
+### Fixes (v3.0.4)
+
+- **Name-fallback field trimming**: Pipe-delimited fields from the name-fallback CLI output are now trimmed — fixes empty/corrupted command arguments caused by trailing whitespace
+
+### SideKick_GC v1.2.1
+
+- **Single payment via `create_payment`**: Silent mode with 1 payline creates a one-off payment instead of an instalment schedule
+- **`--check-mandate-by-name` output**: Includes customer name and email in the response for the name-fallback confirmation dialog
+
+---
+
+## v3.0.3 (2026-03-09)
+
+### New Features (v3.0.3)
+
+- **Email PDF toolbar button**: New toolbar button emails invoice PDF to client via GHL email template
+- **Email PDF settings**: GHL email template selector in Print tab + toggle in Toolbar settings tab
+- **Email PDF print-then-email flow**: Follows the same Print-to-PDF procedure (print → save → copy) then emails the generated PDF automatically
+
+### Fixes (v3.0.3)
+
+- **Email PDF template persistence**: Opening/closing Settings no longer wipes the saved PDF email template when the template cache is empty
+- **Toolbar settings show/hide**: Email PDF toggle now properly hidden/shown when switching settings tabs
+
+---
+
+## v3.0.2 (2026-03-09)
+
+### New Features (v3.0.2)
+
+- **Silent GoCardless plan creation**: When all payment data is available (mandate + paylines from album), creates the GoCardless instalment schedule silently via CLI — no GUI window opened
+- **Auto-detect silent mode**: `GC_ShowPayPlanDialog` reads payment data from the .psa file when PayPlanLine globals are empty (toolbar/search flow), and goes silent when mandate ID and DD paylines are both available
+- **GoCardless plan cancellation on Replace**: Cancels active instalment schedules, subscriptions, and pending one-off payments on the mandate before creating a new plan
+- **Replace PayPlan button**: Mandate dialogs show "Replace PayPlan" when existing plans are detected, "Add PayPlan" when none
+
+### Fixes (v3.0.2)
+
+- **PayPlan .psa injection newline bug**: JSON amount parser now stops at `\n`/`\r` and trims whitespace — fixes broken `write_psa_payments` args from pretty-printed result JSON
+- **Pending deposit not cancelled**: `cancel_mandate_plans` now cancels pending one-off payments (deposits) alongside instalment schedules and subscriptions
+
+### SideKick_GC v1.2.0
+
+- **`--silent` CLI flag**: Create payment plans headlessly — requires `--mandate-id`, `--paylines`, `--plan-name`; writes result file and exits without GUI
+- **`--cancel-plans` CLI command**: Cancel all active plans on a mandate (subscriptions, instalments, and pending one-off payments)
+- **`cancel_mandate_plans()` API**: Iterates all plans on a mandate and cancels active ones
+- **`cancel_payment()` API**: Cancel individual pending payments
+
+---
+
+## v3.0.1 (2026-03-09)
+
+### New Features (v3.0.1)
+
+- **Multi-client PayPlan group detection**: Automatically targets the correct client in multi-group ProSelect albums by matching the PayPlan balance against each group's order total
+- **Ambiguous balance prompt**: When multiple groups share the same balance, a dialog lets the user pick the correct client by name
+- **Existing PayPlan detection**: Checks for existing payments before writing — offers Replace (delete old + write new), Add (append), or Cancel
+- **PayPlan success dialog**: Shows payment count on success, confirms old plan removal when Replace was used
+
+### Fixes (v3.0.1)
+
+- **Toolbar multi-monitor positioning**: Toolbar now tracks the last active ProSelect window instead of picking the largest — fixes wrong-monitor placement when multiple PS windows exist
+- **Toolbar dialog hiding**: Toolbar hides when ProSelect dialogs (Client Setup, Print, etc.) are the active window
+- **Toolbar drag persistence**: Deferred toolbar rebuild after drag prevents AHK v1 g-label thread blocking on subsequent drags
+- **Toolbar background sampling**: Uses tracked ProSelect window for correct screen color sampling on multi-monitor setups
+
+### Improvements (v3.0.1)
+
+- **GoCardless prompt removed**: PayPlan flow now shows a success dialog instead of auto-launching SideKick_GC
+- **write_psa_payments --clear**: Scoped to target group only in multi-client albums
+- **read_psa_payments --group N**: Read payments from a specific client group
+
+---
+
+## v3.0.0 (2026-03-05)
+
+### SideKick_GC v1.1.1 — Unified with SideKick_PS
+
+SideKick_GC is now included in the SideKick_PS package. GC can still run as an independent
+standalone application, but from this version onward all GC changes are also tracked here.
+
+#### New Features
+
+- **Close to Tray option**: "Close to system tray" checkbox in GC Settings — when enabled, X hides to system tray; when disabled (default), X minimises to taskbar
+- **Toast on Mandate Cancellation**: "Show Windows notification on mandate cancellation" checkbox — displays a Windows toast when polling detects bank-cancelled mandates (enabled by default)
+- **Exit Program button**: Red "⏻ Exit" button in GC Settings to fully quit the application, with a confirmation warning if notification polling is active
+- **Polling-active exit warning**: Exiting via Settings or tray menu warns if polling is running — reminds that SideKick needs to stay in the background for polling to work
+
+#### Improvements
+
+- **X button behaviour**: Clicking X now minimises to taskbar (or hides to tray if enabled) — the app always stays running
+- **Desktop Shortcut button**: Renamed with the SideKick_GC app icon instead of emoji
+- **Smaller checkboxes & radio buttons**: Reduced indicator size and font for a cleaner, more compact look
+- **Settings layout**: Bottom-justified Desktop Shortcut and Exit buttons on the same row with matching height
+
+---
+
+## v2.5.52 (2026-03-04)
+
+### New Features (v2.5.52)
+
+- **Cardly Receiving Date**: Schedule card arrival for a specific date — dropdown with ASAP (default), Birthday, Shoot Anniversary, and any date-type GHL custom fields. Cardly calculates dispatch backward from the requested arrival date.
+- **Cardly no-album mode**: Launch Cardly without a ProSelect album open — skips album-dependent steps and shows a folder picker to select images manually. Requires a GHL client to be loaded first.
+- **Receiving Date refresh button**: Fetches all date-type custom fields from the GHL contact record and adds them to the dropdown.
+- **Birthday always visible**: Birthday entry always appears in the Receiving Date dropdown — shows the date from GHL or "Unknown" if not on file.
+- **Shoot Anniversary**: Session date fields auto-calculate +1 year for the anniversary.
+
+### Improvements (v2.5.52)
+
+- **Wedding → WD**: Wedding abbreviated to WD in date labels for compact dropdown display.
+- **Dropdown scroll**: Receiving Date dropdown limited to 6 visible rows with scrollbar for longer lists.
+
+### Bug Fixes (v2.5.52)
+
+- **Loader animation freeze**: Added `SetWinDelay, -1` to CardlyLoader — AHK's default 100ms delay on every `WinExist()` call was blocking the animation thread.
+- **Loader timer collision**: Merged two separate timers (AnimateBar + CheckDone) into a single `Tick` timer with `Critical` flag — exit checks run every 6th tick to keep bar smooth.
+- **Loader border & encoding**: Added 1px border to loading GUI, removed emoji from title text, saved with UTF-8 BOM for AHK v1 compatibility.
+
+## v2.5.51 (2026-03-04)
+
+### Bug Fixes (v2.5.51)
+
+- **GoCardless RunCmdToFile migration**: All 6 `RunCaptureOutput` callers (mandate check, connection test, wizard test, billing request, create payment, list plans) switched to proven `RunCmdToFile` — eliminates the `RunCaptureOutput ERROR: 1` exception that caused empty output.
+- **Cardly preview unified CLI**: Cardly button used `GetScriptPath` which returned the old individual `_cpg.exe` (missing in unified build). Now uses `GetScriptCommand` which routes through `SideKick_PS_CLI.exe cardly-preview`.
+- **Write PSA payments unified CLI**: Payment Calculator used `GetScriptPath` + manual `cmd /c` for `write_psa_payments`. Now uses `GetScriptCommand` + `RunCmdToFile`.
+- **DevUpdateVersion writes to source**: "Update Version" button was writing `version.json` to the install folder (`Program Files`) instead of the source repo (`C:\Stash`). Same fix applied to QuickPush's `SideKick_PS.ahk` and `version.json` updates.
+- **Build --clean removed**: PyInstaller `--clean` flag caused a confirmation prompt that blocked automated builds waiting for keypress. Removed from both unified CLI and individual exe builds.
+
+### New Features (v2.5.51)
+
+- **Cardly loading GUI**: Animated dark-themed progress bar appears immediately on Cardly button press, with status updates at each preparation step (checking ProSelect, reading images, fetching client, loading message, finding exports, building preview, launching). Stays visible with pulsing animation until the PySide6 preview window appears.
+
+### Improvements (v2.5.51)
+
+- **No console flash**: Cardly preview exe launched with `Hide` flag and async polling instead of `RunWait` — eliminates the 2-second console window flash.
+- **Seamless loading**: Single continuous loading experience from button press to preview window, replacing the old sequence of brief tooltip → console flash → frozen startup.
+
+---
+
+## v2.5.47 (2026-03-04)
+
+### Bug Fixes (v2.5.47)
+
+- **RunCaptureOutput rewritten**: Used temp `.cmd` file approach instead of `WScript.Shell.Exec(ComSpec /c ...)` — fixes empty stdout when the exe path contains spaces (e.g. `C:\Program Files (x86)\...`). Affected all GoCardless mandate checks, connection tests, and other `RunCaptureOutput` callers.
+- **Helper detection for unified build**: Startup helper version check now looks for `SideKick_PS_CLI.exe` when individual `_sps.exe` is absent, eliminating the `WARNING: sync_ps_invoice helper not found!` log entry.
+- **Update/resync error display**: Error dialog now shows client name, shoot number, email, album, and order total when an update or resync fails (was previously blank).
+- **Invoice update draft pre-check**: When new total < amount already paid, attempts `update_invoice_to_draft()` first to bypass GHL payment restrictions. Error message now includes actual amounts.
+
+### Improvements (v2.5.47)
+
+- **Unified build priority**: Build script now compiles unified CLI exe first; if successful, skips all 13 individual Python exes (faster builds, smaller installer).
+- **Validation error guidance**: Error dialog shows specific fix instructions when "total may be less than amount paid" — suggests Replace, refund in GHL, or re-export.
+
+---
+
+## v2.5.46 (2026-03-04)
+
+### New Features (v2.5.46)
+
+- **Invoice Update**: Update an existing GHL invoice's line items and amounts in place via `--update-invoice <id>`. Preserves recorded payments, records any new past payments not yet in GHL, and replaces future recurring schedules.
+- **Invoice Resync**: Delete old invoice(s) for a shoot and create a fresh one in a single `--resync` operation. Aborts safely if provider payments (GoCardless/Stripe) need manual refund.
+- **Payment-Aware Duplicate Prompt**: When a duplicate invoice is detected, a `DarkMsgBox` with four buttons replaces the old Yes/No MsgBox:
+  - **Replace** — delete old invoice and resync (default when no payments)
+  - **Update** — update items in place (default when payments exist)
+  - **New** — create another invoice alongside existing
+  - **Cancel** — do nothing
+- **Shoot-Scoped Deletion**: New `delete_shoot_invoices()` function targets only invoices matching the shoot number, not all client invoices
+
+### Improvements (v2.5.46)
+
+- **Duplicate Check `amount_paid`**: `check_existing_invoice()` now returns `amount_paid` so AHK can show payment status and choose the right default action
+- **Update Payment Diffing**: Compares XML past payment total vs GHL `amountPaid` and only records the difference — no duplicate payment records
+- **Update Schedule Replacement**: Cancels existing recurring schedules matching the shoot, then creates new ones for remaining future payments (with rounding-in-deposit support)
+
+---
+
+## v2.5.45 (2026-03-04)
+
+### Bug Fixes (v2.5.45)
+
+- **Stale Mandates 'script not found'**: Fixed `gocardless_api script not found` error when Stale Mandates GUI is launched via the unified `SideKick_PS_CLI.exe`. The individual `_gca.exe` no longer ships — `_find_gc_script()` now discovers `SideKick_PS_CLI.exe` and routes GoCardless API calls through the `gocardless` subcommand automatically. Legacy standalone exe/py fallback preserved for backwards compatibility and dev mode.
+
+---
+
+## v2.5.44 (2026-03-04)
+
+### New Features (v2.5.44)
+
+- **SideKick_GC Payments Tab**: New "Payments" tab in SideKick_GC for creating single payments and recurring subscriptions — mirrors GoCardless dashboard functionality
+- **Single Payments via GC**: Create one-off payments against an active mandate with amount, charge date, description, reference, and metadata
+- **Subscriptions via GC**: Create recurring subscriptions with configurable frequency (weekly/monthly/yearly), interval, day-of-month, and end condition (indefinite / fixed count / end date)
+- **Inline Name Prefix**: Plan name and subscription name inputs now show the Statement Label prefix inline as a non-editable label — user sees the full bank statement name but can only edit the suffix
+
+### Improvements (v2.5.44)
+
+- **SideKick_GC v1.1.0**: Subscription API (`create_subscription`, `cancel_subscription`), new worker threads, mandate ID forwarding to Payments tab
+- **Python Package v1.1.0**: `sidekick_ps` package version bumped to 1.1.0
+
+---
+
+## v2.5.43 (2026-03-02)
+
+### New Features (v2.5.43)
+
+- **Stale Mandates Qt6 GUI**: New standalone PySide6 dark-themed window for finding and cancelling expired GoCardless mandates. Sortable table with checkboxes, last payment date, total collected, customer name, email, and mandate ID. Batch cancel with two-stage safety warnings (irreversible). Singleton — prevents duplicate windows.
+- **Stale Mandates Button**: New button in GoCardless settings panel launches the Qt6 GUI
+- **Toolbar Auto-Scale**: New checkbox in Toolbar settings auto-links toolbar size to ProSelect window width using `psW / (1920 × DPI_Scale)` with 5% quantization and 800ms cooldown
+- **Toolbar Manual Scale**: New dropdown (50%–100%) for manually sizing the toolbar on smaller screens
+
+### Improvements (v2.5.43)
+
+- **cmd.exe Robustness**: `RunCmdToFile()` and `RunCmdToFileAsync()` helpers replace all 17+ vulnerable `%ComSpec% /c` call sites with temp `.cmd` file pattern — safe with spaces and quotes in paths
+- **Build Pipeline**: PySide6 auto-installed at build time; `stale_mandates_gui` compiled to `_smg.exe` with `--noconsole`, code-signed, and included in Inno Setup installer
+
+### Bug Fixes (v2.5.43)
+
+- **GoCardless 'No Plans' Hang**: Fixed cmd.exe quoting issue with paths containing spaces causing the button to hang indefinitely
+
+---
+
+## v2.5.41 (2026-02-28)
+
+### Bug Fixes (v2.5.41)
+
+- **GoCardless Button No Output**: All CLI Python helper EXEs (`_gca.exe`, `_sps.exe`, `_fgc.exe`, `_ugc.exe`, etc.) were compiled with PyInstaller `--noconsole`, which disconnects stdout. On systems where AHK runs the EXE via `RunWait ... Hide` with no console allocated, `print()` output was silently discarded — causing the GoCardless button to always return "script returned no output". Fixed by compiling CLI scripts with `--console` instead. GUI scripts (`cardly_preview_gui`) remain `--noconsole`.
+- **Build Script Console Flag**: `build_and_archive.ps1` now uses a `$guiScripts` list to apply `--noconsole` only to GUI scripts. All other scripts get `--console` so stdout piping works reliably.
+
+---
+
+## v2.5.40 (2026-02-28)
+
+### New Features (v2.5.40)
+
+- **Review Order Toolbar Button**: New button opens ProSelect Orders > Review Order via `Alt+O` menu keystrokes. Uses Receipt font glyph (U+E762) — no PNG, same icon system as all other buttons.
+- **Review Order Settings Toggle**: Clickable icon in Toolbar settings tab (amber background) with INI persistence (`ShowBtn_ReviewOrder`)
+- **EXE Code Signing**: All compiled `.exe` files in the Release folder (SideKick_PS.exe + all Python helpers) are now digitally signed before the installer is built
+- **RFC 3161 Timestamping**: Signatures use SHA-256 with RFC 3161 timestamp — remains valid after certificate expiry
+- **Timestamp Failover**: Tries 3 timestamp servers in sequence (Certum → DigiCert → Sectigo) for reliability
+- **Cardly Browse Image Button**: New browse button (📂) in card preview crop controls — select any image from disc, adds to filmstrip and displays it. Opens at the album folder by default.
+- **GoCardless Diagnostics**: New `gc_diagnose.bat` and `gc_fix_connection.bat` tools for troubleshooting GoCardless connectivity issues
+
+### Improvements (v2.5.40)
+
+- **Toolbar Button Position**: Review Order sits to the left of Camera in toolbar and settings tab
+- **Settings GroupBox**: Enlarged to accommodate the additional Review Order row
+- **Settings Hotkey Default**: Default Settings hotkey changed from `Ctrl+Shift+W` to `Ctrl+Shift+I` to avoid conflicts
+- **Hotkey Passthrough**: When ProSelect/SideKick is not the active window, hotkeys are now passed through to the target application instead of being silently consumed
+- **Cardly Rotate Button Sizing**: Orientation swap button now uses pixel-based sizing (32×32) for consistent appearance across systems
+- **PII Redaction in Logs**: All `debug_log()` and `error_log()` calls now pass data through `_redact_pii()` before writing — emails, names, addresses, and phone numbers are automatically masked. Prevents personal data leaking into Gist-uploaded debug logs.
+- **PII Redaction in Console Output**: Status `print()` messages no longer include client emails, names, or addresses — replaced with `[redacted]` or generic descriptions
+
+---
+
+## v2.5.39 (2026-02-27)
+
+### New Features (v2.5.39)
+
+- **File Browser Dropdown**: Replaced Editor Path text field with auto-detecting dropdown — automatically finds installed Adobe Bridge, Lightroom Classic, Photoshop, and Capture One. Browse button for manual selection.
+- **Dynamic Toolbar Icons**: Open Folder toolbar button now shows the selected file browser's icon (Bridge, Lightroom, or Explorer) recolored to match the toolbar icon colour
+
+### Improvements (v2.5.39)
+
+- **Toolbar Icon Recoloring**: File browser icons use the same white-source → PowerShell recolor pipeline as Photoshop/GC/Cardly icons, updating automatically on toolbar colour change
+
+### Bug Fixes (v2.5.39)
+
+- **Cardly Orientation Swap API**: Fixed `create_cardly_artwork` using the wrong template ID after flipping between landscape/portrait — `template_id` was passed as `name` parameter instead of `media_id_override`, causing dimension mismatch errors
+- **Open Folder Button Visibility**: Fixed Open Folder toolbar icon/label not hiding when switching away from Toolbar settings tab
+
+---
+
+## v2.5.38 (2026-02-27)
+
+### New Features (v2.5.38)
+
+- **Toolbar Section Separators**: Visual dividers between GHL, Shortcuts, and Services button groups on the floating toolbar — clearer button organisation at a glance
+- **GoCardless Auto-Detect on Payment Entry**: After writing DD payments to an album, SideKick detects GoCardless/Direct Debit payment types and offers to create them in GoCardless immediately
+- **Settings Export/Import: Sticker Support**: Cardly sticker overlay PNGs are now base64-encoded into the `.skp` export package and restored on import — stickers transfer seamlessly between machines
+
+### Improvements (v2.5.38)
+
+- **Toolbar Button Order**: Refresh button moved before Sort; buttons logically grouped into GHL → Shortcuts → Services sections
+- **PayPlan Window Detection Simplified**: Payline watcher no longer requires the "Add Payment" list window — only the payline entry form ("Date" text) is needed, fixing detection on some ProSelect versions
+- **PayPlan Silent Success**: Removed confirmation dialog after successful payment entry — success indicated by sound only, failures still show error dialog
+- **Settings Export/Import Summary**: Confirmation dialogs now list toolbar button visibility, Cardly sticker overlays, and GoCardless settings in the package contents
+- **Code Signing**: Installer and uninstaller are now digitally signed with Certum code signing certificate (Zoom Studios Ltd)
+
+### Bug Fixes (v2.5.38)
+
+- **PayPlan EnteringPaylines State**: Fixed `EnteringPaylines` flag not being reset after payment write — previously could block subsequent payment entries until script restart
+
+---
+
+## v2.5.37 (2026-02-27)
+
+### New Features (v2.5.37)
+
+- **Open Folder Toolbar Button**: New toolbar button opens the album's image source folder (where the original photos reside on disk) rather than the .psa file location
+- **GetAlbumSourceFolder()**: Uses PSConsole `getImageData` to extract the actual `shellpath` from the first image element — no Python or SQLite needed
+
+---
+
+## v2.5.36 (2026-02-26)
+
+### New Features (v2.5.36)
+
+- **Cardly Template Orientation Swap**: Rotate button (⇄) in the card preview GUI switches crop between Landscape and Portrait, automatically using the matched template pair
+- **Cardly Orientation Pair Detection**: RefreshCardlyTemplates auto-discovers L↔P template pairs by stripping orientation suffixes and performing case-insensitive base name matching
+- **Lead Connector QR Toggle**: New checkbox in GHL settings switches QR code URL between white-label domain (opens browser) and `app.leadconnector.app` (opens LC mobile app)
+- **Cardly Sign Up Button**: Added "Sign Up" button in Cardly settings next to Dashboard
+- **Cardly Dashboard URL Configurable**: Dashboard URL now editable in Settings instead of hardcoded
+- **Direct PSA Payment Writing**: New `write_psa_payments.py` script injects payments directly into .psa SQLite files
+- **UpdatePS Payment Flow**: Save album → write payments to PSA → reload album (no XML export needed)
+
+### Improvements (v2.5.36)
+
+- **Cardly Sticker: Open Folder**: Added "Open Folder..." option to the sticker overlay dropdown — opens the sticker folder in Explorer for quick access to add/remove sticker PNGs
+- **Cardly Orientation Pair: API ID Fallback**: Orientation swap now also matches template pairs by Cardly API ID (e.g. `thankyou-photocard-l` ↔ `thankyou-photocard-p`) when display name matching fails
+- **GoCardless Always Live**: Removed environment selector from settings and setup wizard (was Sandbox/Live dropdown). Environment is now always "live" — simplifies setup and prevents accidental sandbox usage
+- **GoCardless Wizard Simplified**: Reduced setup wizard from 5 steps to 4 by removing the environment selection step
+- **Plan Naming: Order Date**: Added "Order Date" field option to GoCardless plan naming dropdown — reads the order date from the .psa album file
+- **Plan Naming Format Applied**: Plan naming format from Settings is now used to auto-generate the default plan name in the payment dialog (previously just used the album name)
+- **PSConsole saveAlbum**: Replaces Ctrl+S keyboard automation with direct API call (no blind 3-second sleep)
+- **PSConsole openAlbum**: Replaces Ctrl+O with direct API call and smart single-PSA file detection
+- **Cardly Message Box Height**: Doubled from 4 to 8 lines for longer personalised messages
+- **Cardly Multiline Messages**: Full `\n` escape chain across INI → AHK → command line → Python preserves line breaks
+- **Cardly Spinner Animation**: Replaced stalling ttk.Progressbar with canvas-based spinning dots animation
+- **Card Details Orientation Label**: Size display now shows "Landscape" or "Portrait" next to dimensions
+- **GoCardless Crash Handler**: Added top-level exception handler to gocardless_api.py — unhandled errors now print `ERROR|...` to stdout instead of producing silent empty output
+- **GoCardless Empty Output Detection**: Test connection and mandate check now detect when the script returns no output and display a specific message about antivirus/exe blocking (previously showed blank error)
+- **Cardly Orientation: Trailing Number Tolerance**: API ID matching now strips trailing numeric segments (e.g. `-11482`) before comparing orientation pairs — handles Cardly's version-suffixed template IDs
+- **Cardly Preview Window Icon**: All Cardly preview GUI windows (main, progress, success) now show the SideKick icon in the title bar and taskbar instead of the default Python/Tk icon
+- **Cardly Preview Threaded Send**: Card sending (image processing, artwork upload, order placement, GHL upload) now runs on a background thread — spinner animation stays smooth instead of freezing during network calls
+- **Cardly Orders Button**: Added "Orders" button in Cardly settings tab — opens the Cardly order management page directly
+- **PyInstaller Icon**: All compiled Python executables now include the SideKick icon (previously used generic PyInstaller icon)
+
+### Bug Fixes (v2.5.36)
+
+- **GoCardless Environment Default**: Hardcoded environment to "live" — fixes test connection failure for users with live API tokens (was defaulting to sandbox)
+- **GHL Tag Sync**: Fixed INI key mismatch — `Tags` vs `SyncTag` and `OppTags` vs `OpportunityTags` now both supported with fallback
+- **Cardly Address Validation**: State/county field no longer required (UK addresses don't have state)
+- **Build: Missing Python Scripts**: Added `write_psa_payments`, `read_psa_payments`, `read_psa_images`, and `create_ghl_contactsheet` to build pipeline, installer, and AHK script map
+- **Build: write_psa_payments Hardcoded Path**: Now uses `GetScriptPath()` instead of hardcoded `.py` reference — works correctly with compiled `.exe` in production
+
+---
+
+## v2.5.35 (2026-02-25)
+
+### Bug Fixes (v2.5.35)
+
+- **GHL Photo Link URL Mismatch**: Fixed contact Photo Link custom field storing the internal Google Storage URL instead of the public CDN URL (`assets.cdn.filesafe.space`). Upload response URL is now normalised to the correct public domain.
+- **GoCardless API Token Rejected on Re-entry**: Fixed `Base64_Encode()` using `CRYPT_STRING_BASE64` flag which embeds `\r\n` every 76 characters — this broke the JSON credentials file when encoding long tokens (e.g., GoCardless live tokens). Now uses `CRYPT_STRING_NOCRLF` flag to produce single-line base64. Also added `Trim()` to the Edit Token input to strip accidental whitespace from pasted tokens.
+
+### Documentation
+
+- **Cardly Test Mode Documentation**: Added comprehensive test mode section to user manual and technical documentation explaining what test mode validates, what it skips, cost implications, and orphaned artwork behaviour
+- **User Manual — Greeting Cards (Cardly)**: New full section covering workflow, test mode comparison table, image sources, and requirements
+
+---
+
+## v2.5.34 (2026-02-23)
+
+### New Features (v2.5.34)
+
+- **Graphical Toolbar Button Settings**: Toolbar Shortcuts panel now shows clickable icons instead of toggle sliders
+- **Visual Toggle Feedback**: Icons change background color and labels gray out when disabled
+- **Direct Toggle Updates**: Button visibility updates immediately on click (no need to wait for Apply)
+
+### Improvements (v2.5.34)
+
+- **Cleaner Settings UI**: Removed toggle slider controls in favor of more intuitive icon-based toggles
+- **Consistent Styling**: Toolbar button icons in settings match actual toolbar appearance
+
+---
+
+## v2.5.33 (2026-02-22)
+
+### New Features (v2.5.33)
+
+- **Bank Transfer Display**: Added Bank Transfer Details section to Display tab with Bank Institution, Account Name, Sort Code, and Account Number fields
+- **Slide Cycling System**: Display now cycles through QR codes, bank transfer details, and custom images as slides (↑↓ to navigate)
+- **Scalable Bank Display**: Bank transfer slide text scales with Size slider (25-85%) same as QR codes
+- **Sort Code Formatting**: Sort codes automatically formatted as ##-##-## on display
+
+---
+
+## v2.5.32 (2026-02-20)
+
+### Documentation & Legal
+
+- **Enhanced EULA**: Added Third-Party Services section (§9), expanded Disclaimer of Warranties and Limitation of Liability, added Indemnification clause
+- **Terms of Service Pages**: Created comprehensive terms.html for docs/ and Website/ with full legal terms
+- **Privacy Policy Updates**: Enhanced Section 3.2 with detailed warranty disclaimers, third-party service notices, liability limits, and indemnification
+- **Manual Disclaimers**: Updated GHL and GoCardless sections with comprehensive "AS IS" disclaimers and user responsibility notices
+- **GoCardless Auto-Detect**: Removed hardcoded 'bacs' scheme - GoCardless now auto-detects scheme based on customer's bank country
+
+---
+
+## v2.5.31 (2026-02-19)
+
+### New Features (v2.5.31)
+
+- **Direct PSA File Reading**: Read payment data and thumbnails directly from ProSelect .psa album files (SQLite format)
+- **PSA Payment Extraction**: GoCardless payment dialog now reads payments directly from .psa file instead of requiring XML export
+- **PSA Thumbnail Extraction**: Contact sheet generation extracts thumbnails from .psa file directly
+- **GC Past Payment Detection**: Payment dialog detects past due dates and offers to bump them to future dates
+- **GC Dynamic Icon Color**: GoCardless toolbar icon now dynamically matches toolbar icon color scheme
+- **Clipboard Helper Functions**: New `ClipboardSafeGet()`, `ClipboardSafeRestore()`, `ClipboardSafeCopy()` functions preserve user clipboard contents
+
+### Bug Fixes (v2.5.31)
+
+- **GHL Invoice Tax Error**: Fixed HTTP 422 "taxes allowed only on items with price greater than 0" - removed `taxInclusive` field from zero-price items
+- **Build Script Missing Icons**: Fixed installer failing due to missing icon files (Icon_GC_32_White.png, etc.)
+- **GetAlbumFolder Path**: Fixed Save As dialog returning breadcrumb display names instead of actual path (uses Alt+D trick)
+- **Payment Regex Decimals**: Fixed regex to handle decimal payment values (e.g., £91.70 not just whole numbers)
+- **GC Search Mandate Dialog**: InputBox now stays on top of other windows
+- **GHL Settings Tab Visibility**: Auto-save XML toggle now properly hides when switching to other tabs
+
+### Improvements (v2.5.31)
+
+- **Weekly Update Checks**: Changed auto-update check frequency from monthly (30 days) to weekly (7 days) for faster bug fixes
+- **GHL Settings Panel**: Added Auto-save XML toggle, moved Contact Sheet Collection box up
+
+---
+
+## v2.5.26 (2026-02-18)
+
+### Bug Fixes (v2.5.26)
+
+- **SMS Templates Argument**: Fixed `--list-sms-templates` missing from compiled exe (was only in development argparse branch)
+
+---
+
+## v2.5.25 (2026-02-18)
+
+### Bug Fixes (v2.5.25)
+
+- **GoCardless Instalment Amount**: Fixed "parameter incorrectly typed" error - now includes amount for each instalment payment
+- **Error Dialog Truncation**: DarkMsgBox now auto-calculates height for long/wrapped messages
+- **Toolbar Background Persistence**: Saves last known toolbar background color to INI for reload
+
+### Improvements (v2.5.25)
+
+- **Clickable Mandate List**: "Mandates Without Plans" now uses ListBox with clickable rows instead of selectable text
+- **Album Search**: GC_FindAlbumFromList now searches using both job number AND surname for better matching
+- **OpenPSAFolderInProSelect**: Fixed folder navigation using ControlSetText instead of F4 hotkey
+
+---
+
+## v2.5.24 (2026-02-18)
+
+### New Features (v2.5.24)
+
+- **Use Another Mandate**: When no mandate found, search by partner's name or email to find their mandate
+- **Open GC Button**: Success dialog now has "Open GC" button to view customer in GoCardless dashboard
+
+### Improvements (v2.5.24)
+
+- **Dark No-Mandate Dialog**: "No mandate found" dialog now uses dark theme with Send Request/Use Another/Cancel buttons
+- **Larger Payment Plan Dialog**: Taller window (545px) with more space for payment list and detected info
+- **GoCardless Rounding**: Instalment schedules now send total_amount - GoCardless handles per-payment rounding
+
+### Bug Fixes (v2.5.24)
+
+- **JSON day_of_month Error**: Fixed invalid JSON when day had leading zero (e.g., 01 → 1)
+- **Instalment Schedule Not Created**: Fixed detection of total_amount parameter in payment plan creation
+
+---
+
+## v2.5.23 (2026-02-18)
+
+### New Features (v2.5.23)
+
+- **GoCardless Setup Wizard**: Step-by-step guide for first-time GoCardless setup - walks through environment selection, token creation, and connection testing
+
+### Security
+
+- **CRITICAL: API Token Exposure Fix**: Removed GoCardless token fields from INI file - tokens now stored ONLY in `%APPDATA%\SideKick_PS\credentials.json`
+- **Removed INI Fallback**: GoCardless tokens no longer read from INI file (prevents accidental exposure via git)
+- **Updated .gitignore**: All `.ini` files now excluded from repository
+
+### Improvements (v2.5.23)
+
+- **No Plans List**: Now excludes mandates that EVER had subscriptions (including finished ones), not just active - finds mandates where no payment was ever set up
+- **Real-time Progress Bar**: Mandate fetch progress now updates live during API calls (same pattern as update download)
+- **Toolbar Background Fix**: Added forced redraw on first launch to fix background color rendering
+
+### Bug Fixes (v2.5.23)
+
+- **Progress Bar Not Updating**: Fixed progress bar freezing during mandate fetch (was blocking on RunWait)
+- **Toolbar Background on Startup**: Added delayed background re-sample 2s after first show to fix color when ProSelect title bar isn't fully rendered during initial sample
+- **Existing Plans Display**: Expanded status filter to include 'completed' and 'finished' plans so all historical payment plans show in mandate dialog
+
+---
+
+## v2.5.22 (2026-02-17)
+
+### New Features (v2.5.22)
+
+- **GoCardless Integration**: New toolbar button for Direct Debit mandate management
+- **GoCardless Settings Tab**: Configure API token, environment, and notification templates
+- **Mandate Checking**: Click GC button to check if client has existing mandate
+- **Send Mandate Request**: Create billing request and send setup link via GHL email/SMS
+- **Secure Token Storage**: GoCardless API token stored in credentials.json (base64 encoded)
+- **Payment Plan Dialog**: Create GoCardless instalment schedules with pre-populated values from PayPlan
+- **DD Payment Filtering**: Payment plan dialog auto-filters for DD payments only (GoCardless, Direct Debit, BACS) - skips Card, Cash, Cheque, etc.
+- **Duplicate Plan Names**: Automatically adds -1, -2 suffix when creating multiple plans for the same shoot
+- **SMS Template Refresh**: Separate SMS template fetch from GHL (email and SMS templates now independent)
+- **Existing Plans Display**: Shows existing instalment schedules and one-off payments when checking mandate
+- **One-Off Payments**: Lists one-off payments alongside instalment schedules for complete payment history
+- **Single Payment Mode**: Payment dialog now supports creating individual one-off payments matching ProSelect PayPlan dates
+- **List Empty Mandates**: New button in GC settings to list all mandates without payment plans (for follow-up)
+
+### Improvements (v2.5.22)
+
+- **Instalment Schedules**: Uses GoCardless instalment_schedules API (not subscriptions) for proper payment plan support
+- **Persistent Templates**: Email/SMS template selections now save immediately on change
+- **Room Capture Templates**: Email template selection now remembered across sessions
+- **SELECT Option**: Template dropdowns include "SELECT" to skip that notification type
+- **Duplicate Check**: Warns before creating plan with same name as existing schedule
+
+### Bug Fixes (v2.5.22)
+
+- **Live Environment Flag**: Fixed GoCardless API calls not passing --live flag (was always using sandbox)
+- **SMS Template Cache**: Fixed SMS dropdown using email template cache instead of SMS templates
+- **Template Dropdown Default**: Shows "SELECT" when no templates loaded
+- **Template Persistence**: Fixed GC email/SMS templates being reset when Settings dialog opened
+
+---
+
+## v2.5.18 (2026-02-17)
+
+### Bug Fixes (v2.5.18)
+
+- **CRITICAL: GHL Product Lookup Crash**: Fixed `LOCATION_ID` undefined at module level - fetch_ghl_products() was failing silently
+- **Config Not Loading API Key**: Now checks `credentials.json` in AppData first (was only checking INI files)
+- **UTF-8 BOM Handling**: credentials.json now read with `utf-8-sig` encoding to handle Windows BOM
+- **Duplicate Credentials Filenames**: Now supports both `credentials.json` and `ghl_credentials.json`
+- **IniWrite Syntax Error**: Fixed empty first parameter in AHK IniWrite call
+
+### Improvements (v2.5.18)
+
+- **Clean Invoice Display**: Clear ProSelect description when GHL product found by SKU (prevents duplicate info)
+- **Tax on Invoice Items**: Add taxes array to GHL line items when item has tax_rate > 0
+
+---
+
+## v2.5.15 (2026-02-17)
+
+### Bug Fixes (v2.5.15)
+
+- **GHL Product SKU Lookup**: Now fetches price-level SKUs (GHL stores SKUs on prices, not just product variants)
+
+---
+
+## v2.5.14 (2026-02-17)
+
+### Bug Fixes (v2.5.14)
+
+- **GHL Zero Quantity Items**: Skip bundled items with qty=0 (e.g., Mat/Frame included free with main product) - GHL API requires qty >= 0.1
+
+---
+
+## v2.5.13 (2026-02-17)
+
+### New Features (v2.5.13)
+
+- **GHL Product Lookup**: Invoice items with Product_Code (SKU) now look up product names from GHL, falls back to ProSelect description if not found
+
+### Improvements (v2.5.13)
+
+- **Toolbar Solid Buttons**: Buttons now fill toolbar completely - no transparent gaps blocking clicks
+- **Auto-Blend Default ON**: Toolbar auto-blend background now enabled by default for new installs
+- **Settings Toggle Style**: Auto-blend toggle now uses consistent ✓/✗ style
+
+---
+
+## v2.5.12 (2026-02-17)
+
+### Bug Fixes (v2.5.12)
+
+- **GHL Invoice Tax**: Use `taxInclusive` boolean flag per official GHL API docs (fixes mixed VAT rates)
+
+---
+
+## v2.5.11 (2026-02-17)
+
+### Bug Fixes (v2.5.11)
+
+- **CRITICAL: GHL Invoice Tax Error**: Fixed HTTP 422 - skip taxes on $0 items (fixes Andrew's Risbey invoice)
+
+---
+
+## v2.5.10 (2026-02-17)
+
+### New Features (v2.5.10)
+
+- **Auto-Blend Toolbar**: Toolbar samples screen behind it and matches background color for seamless integration
+- **Auto-Blend Setting**: Enable/disable in Settings > Hotkeys > Toolbar Appearance
+- **ESC to Cancel Export**: Press ESC during invoice export to cancel with confirmation dialog
+
+### Bug Fixes (v2.5.10)
+
+- **GHL Invoice Tax Error**: Fixed HTTP 422 error - skip taxes on $0 items (GHL API rejects taxes on zero-price items)
+- **Toolbar Click-Through**: Fixed issue where clicking transparent parts of toolbar buttons didn't register (TransColor changed to 010101)
+
+### Improvements (v2.5.10)
+
+- **Seamless Integration**: Toolbar blends with ProSelect title bar when auto-blend enabled
+
+---
+
+## v2.5.9 (2026-02-17)
+
+### Bug Fixes (v2.5.9)
+
+- **GHL Invoice Creation**: Fixed failure when Product_Name was empty (Wall Groupings, Collections)
+- **Rich Item Names**: Invoice items now combine Template + Description for better display
+
+### New Features (v2.5.9)
+
+- **Per-Line Tax**: Each invoice item now includes tax info (20% VAT with inclusive/exclusive flag)
+- **Error Logging**: Always-on error logging (sync_error_*.log) for critical failures
+- **Remote Diagnostics**: Error logs auto-upload to Gist for remote troubleshooting
+
+### Improvements (v2.5.9)
+
+- **Detailed Error Context**: Better error messages for GHL API failures, XML parsing, and missing contact ID
+
+---
+
+## v2.5.8 (2026-02-17)
+
+### New Features (v2.5.8)
+
+- **Setup Wizard Auto-Refresh**: Wizard now auto-loads GHL tags, opportunity tags, and email templates after setup
+- **ProSelect Auto-Launch**: Wizard offers to launch ProSelect and waits up to 60 seconds for print template loading
+- **Manual Button**: Added "📖 Manual" button in General Settings to open online documentation
+- **Docs Button**: Added documentation button in About tab linking to field mapping docs
+- **Website SEO**: Added sitemap.xml and robots.txt for search engine indexing
+- **JSON-LD Schema**: Added SoftwareApplication and FAQPage schema for Google and AI search
+- **Social Meta Tags**: Added Open Graph and Twitter Card meta tags for social sharing
+
+### Improvements (v2.5.8)
+
+- **App Settings Simplified**: Removed ProSelect version display from General Settings group box
+- **Silent Refresh Functions**: Tags and templates load silently during wizard (no dialog interruptions)
+
+---
+
+## v2.5.7 (2026-02-17)
+
+### New Features (v2.5.7)
+
+- **SKU Field Extraction**: Product_Code extracted from ProSelect XML for product matching
+- **Tax Details**: Full tax info extracted (tax_label, tax_rate, price_includes_tax)
+- **Product Line Fields**: Product line code and name for categorization
+- **Size/Template Fields**: Size and Template_Name for product identification
+- **Item ID Tracking**: ProSelect item ID preserved for traceability
+
+### Improvements (v2.5.7)
+
+- **No String Merging**: All ProSelect fields passed through unchanged to GHL
+- **Xero/QuickBooks Ready**: Invoice items include all fields needed for accounting sync
+
+---
+
+## v2.5.6 (2026-02-12)
+
+### New Features (v2.5.6)
+
+- **Print to PDF Calibration**: First-time calibration prompts user to click Print button, stores position relative to window edges
+- **Recalibration Shortcut**: Ctrl+Shift+Click PDF icon to recalibrate Print button position
+- **Transparent Toolbar**: Toolbar background now transparent, showing only colored buttons
+- **Braille Grab Handle**: New ⣿ grab handle icon with solid dark background for easy dragging
+- **Simple Toolbar Drag**: Click and drag grab handle to reposition (no Ctrl required)
+- **Flexible Y Positioning**: Toolbar can now be positioned above title bar area (negative Y offset allowed)
+
+### Improvements (v2.5.6)
+
+- **Calibration Prompt**: Yellow centered GUI with clear instructions explaining why calibration is needed
+- **PDF Filename Cleaning**: Removes "copy" text and replaces spaces with underscores
+- **Copy Folder Validation**: Skips copy if destination drive unavailable instead of failing
+
+### Bug Fixes (v2.5.6)
+
+- **GHL API Compatibility**: Updated Python scripts to use new GHL API endpoint for PIT token support
+- **Secure Credentials**: API keys removed from INI files, stored only in credentials.json
+
+---
+
+## v2.5.0 (2026-02-08)
+
+### New Features (v2.5.0)
+
+- **Toolbar Grab Handle**: Ctrl+Click and drag the ⋮ handle on the left of toolbar to reposition
+- **Persistent Position**: Toolbar position offset saved to INI file, relative to ProSelect window
+- **Reset Position Button**: Settings > Shortcuts > Toolbar Appearance - resets toolbar to default position
+
+### Bug Fixes (v2.5.0)
+
+- **Toolbar Tooltips**: Fixed tooltips not appearing on hover - now uses timer-based detection (100ms interval)
+- **Hover Detection**: Uses MouseGetPos for accurate button detection under cursor
+
+---
+
+## v2.4.77 (2026-02-08)
+
+### New Features (v2.4.77)
+
+- **Local QR Code Generation**: No more Google Charts API dependency - uses BARCODER library for local QR generation
+- **QR Code Caching**: QR codes pre-generated on startup for instant display
+- **WiFi QR Display**: WiFi QR codes show friendly format (WiFi: SSID | Password: xxx)
+- **Monitor Selection**: Choose which monitor displays QR codes via Settings dropdown or arrow keys at runtime
+
+### Improvements (v2.4.77)
+
+- **Flash-Free QR Cycling**: Controls update without GUI rebuild when cycling through QR codes
+- **Smart Dialog Detection**: Toolbar hides automatically when smaller ProSelect windows (dialogs) are active
+- **QR Instructions Position**: Instructions moved to bottom of QR display for cleaner appearance
+- **Ps Button Color**: Photoshop button now uses toolbar icon color setting like other buttons
+
+---
+
+## v2.4.75 (2026-02-07)
+
+### New Features (v2.4.75)
+
+- **Print to PDF**: Toolbar print button can save PDF to album folder with optional copy to secondary folder
+- **Print Settings Tab**: Dedicated settings tab for print templates, room capture email, and PDF output configuration
+- **Enable PDF Toggle**: Persistent toggle to switch toolbar print button between normal print and PDF mode
+- **PDF Copy Folder**: Configure a secondary folder where generated PDFs are automatically copied
+
+### Improvements (v2.4.75)
+
+- **DPI-Scaled Toolbar**: All button dimensions, spacing, and offsets now scale with display DPI
+- **Room Captured Dialog**: Shows image preview thumbnail using GDI+
+- **Toolbar Auto-Hide**: Toolbar hides during Save Album As, Save As, and Print dialogs
+- **Email Template Refresh**: Uses GetScriptCommand for .exe/.py compatibility on installed machines
+
+### Bug Fixes (v2.4.75)
+
+- Contact sheet JPG now saves to album/XML directory instead of Program Files (Permission denied fix)
+- Email template refresh works on installed builds (.exe) not just dev (.py)
+- Fixed GetPythonExe() → GetPythonPath() call in RefreshPrintEmailTemplates
+
+---
+
+## v2.4.72 (2026-02-07)
+
+### New Features (v2.4.72)
+
+- **Room Capture Email Template Picker**: When clicking Email after a room capture, a template picker dialog appears letting you choose from available GHL email templates with your default pre-selected
+- **Shortcuts Tab**: New Settings tab for configuring toolbar buttons and quick print templates
+- **Quick Print Templates**: Configure template names for "Payment Plan" and "Standard" orders that auto-select in ProSelect's Print dialog
+- **Invoice Deletion**: Ctrl+Click the Sync Invoice button to delete the last synced invoice for the current client
+
+### Improvements (v2.4.72)
+
+- **Email Template Refresh**: 🔄 button in Settings → Shortcuts fetches email templates from GHL
+- **Client Lookup Cancel**: Added Cancel button to "Client ID Found in Album" dialog
+- **Contact/Opportunity Tagging**: Configure tags to automatically apply to contacts and opportunities during invoice sync
+
+### Bug Fixes (v2.4.72)
+
+- Fixed command quoting issues for Python script execution (email templates, license validation)
+- Fixed global variable declarations for GUI controls in template pickers
+
+---
+
+## v2.4.28 (2026-01-31)
+
+### Improvements (v2.4.28)
+
+- **DPI Scaling for DarkMsgBox**: Full high-DPI display support
+  - Button dimensions (width, height) scale with DPI
+  - Button spacing and positioning scale with DPI
+  - Font sizes scale with DPI
+  - Bottom padding scales with DPI
+  - Fixed button obscuring text on What's New dialog
+
+---
+
+## v2.4.27 (2026-01-31)
+
+### Improvements (v2.4.27)
+
+- **Invoice Sync Enhancements**:
+  - Payment schedules now show as actual invoice line items with dates and amounts
+  - Added VAT/Tax summary on invoices (Subtotal ex VAT, VAT, Total)
+  - Only past payments recorded as transactions (future payments show as scheduled items)
+  - Automatic total verification and rounding adjustment (first payment)
+  - All payments labeled "Payment 1", "Payment 2", etc.
+- **Export Workflow Fixes**:
+  - Extended sleep after "Check All" button (2 seconds for ProSelect response)
+  - Added Cancel button click to close Export window after completion
+  - Uses configured Invoice Watch Folder as export location
+  - Clear tooltips after invoice sync completion
+- **Dark Mode Consistency**:
+  - Converted remaining MsgBox dialogs to DarkMsgBox
+  - Improved error messages with dark mode styling
+
+### Bug Fixes (v2.4.27)
+
+- Fixed script reference (sync_ps_invoice_v2 → sync_ps_invoice)
+- Fixed invoice sync early return issue preventing GHL upload
+- Fixed export timeout error messages
+
+---
+
+## v2.4.26 (2026-01-31)
+
+### Bug Fixes (v2.4.26)
+
+- Fixed `DateDiff` function errors - replaced with AHK v1 compatible `EnvSub` for date arithmetic
+  - `GetLicenseDaysRemaining()` - license expiry calculation
+  - `IsTrialValid()` - trial period validation
+  - `CheckMonthlyUpdateAndValidation()` - update check interval
+
+---
+
+## v2.4.25 (2026-01-31)
+
+### New Features (v2.4.25)
+
+- **DarkMsgBox Function**: Universal dark mode message box with word wrap, multiple button support, checkbox option, timeout, and type-based icons (info, warning, error, question, success)
+- **Import/Export Settings**: Export encrypted settings (.skp file) to share between computers, with post-import validation for GHL and license
+- **Contact Sheet Setting**: New "Create contact sheet with order" toggle (default ON) in Invoice tab
+- **GHL Invoice Warning Dialog**: Dark mode styled warning with Cancel button, warns about automated GHL emails before invoice creation
+
+### UI Improvements
+
+- Dark mode title bar support using DwmSetWindowAttribute
+- Fixed bold font inheritance on toggle slider labels throughout Settings GUI
+- Shortened "Desktop Shortcut" button text
+- Removed non-functional "Auto-fetch client details" setting (reserved for future)
+
+### Bug Fixes (v2.4.25)
+
+- Fixed duplicate DarkMsgBox function definition error
+- Fixed installer referencing non-existent Python executables
+- Converted all MsgBox calls to DarkMsgBox for consistent styling
+
+### Technical
+
+- Cleaned up Legacy folder organization for old Python scripts
+
+---
+
+## v2.4.24 (2026-01-31)
+
+- Quick publish with compiled Python scripts
+- Installer fixes
+
+## v2.4.22 (2026-01-30)
+
+- GHL invoice sync improvements
+- Contact sheet generation
+
+## v2.4.21 (2026-01-30)
+
+- License validation improvements
+- Settings persistence fixes
+
+## v2.4.20 (2026-01-29)
+
+- GHL API integration enhancements
+- Invoice XML parsing improvements
+
+## v2.4.13 - v2.4.19
+
+- Various bug fixes and stability improvements
+- GHL integration refinements
+
+## v2.4.2 (2026-01-15)
+
+- Windows installer with license agreement (EULA)
+- Inno Setup integration
+
+## v2.4.1 (2026-01-10)
+
+- EXE-only releases (no Python source scripts exposed)
+- Compiled Python executables
+
+## v2.4.0 (2026-01-08)
+
+- Major GHL integration release
+- Client lookup from Chrome URLs
+- Auto-populate ProSelect from GHL data
+- Invoice sync to GHL with media upload
+
+## v2.1.0 (2025-12-01)
+
+- Initial GHL integration
+- Payment plan calculator
+- ProSelect automation basics

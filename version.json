@@ -1,0 +1,13 @@
+{
+  "version": "3.0.31",
+  "build_date": "2026-08-28",
+  "download_url": "https://github.com/GuyMayer/SideKick_PS-Releases/releases/latest/download/SideKick_PS_Setup.exe",
+  "release_notes": "Update channel moved to public releases repo — fixes broken updates/downloads",
+  "changelog": [
+    "FIXED: Updates and downloads restored — release channel moved to public SideKick_PS-Releases repo after source repo went private",
+    "Previous (v3.0.30): Phone E.164 normalisation fix; auto-detect country code from Windows locale",
+    "Previous (v3.0.30): GHL invoice creation no longer blocked for contacts without an email address",
+    "Previous (v3.0.30): Webhook now fires on --update-invoice path (re-syncs), not only on first-time syncs",
+    "Previous (v3.0.30): Order Webhook orderId guaranteed unique via invoice_id fallback"
+  ]
+}
