@@ -17,6 +17,20 @@ SideKick_GC changes are tracked here alongside SideKick_PS from v2.5.53 onward.
 SideKick_GC can also run independently — its own CHANGELOG.md covers standalone releases.
 -->
 
+## v3.0.32 (2026-08-28) — GoCardless token fix
+
+### Fixed
+
+- **GoCardless API token no longer appears missing after an update.** The
+  credential lookup was preferring an empty `%APPDATA%\SideKick_GC\credentials.json`
+  over the legacy `%APPDATA%\SideKick_PS\credentials.json` where existing users'
+  tokens live. `load_config` now falls back to the legacy stores when the primary
+  store has no token, so the token is found again without re-entry.
+
+- **Payments now appear in the album after clicking "Schedule Payments".** The
+  ProSelect payment dialog is now closed before the album reload, so the reload
+  no longer fails with "Application Busy" and the new payment lines show up.
+
 ## v3.0.31 (2026-08-28) — Update channel moved to public releases repo
 
 ### Fixed

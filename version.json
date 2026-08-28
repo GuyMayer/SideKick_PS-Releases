@@ -1,10 +1,12 @@
 {
-  "version": "3.0.31",
+  "version": "3.0.32",
   "build_date": "2026-08-28",
   "download_url": "https://github.com/GuyMayer/SideKick_PS-Releases/releases/latest/download/SideKick_PS_Setup.exe",
-  "release_notes": "Update channel moved to public releases repo — fixes broken updates/downloads",
+  "release_notes": "GoCardless token fix — API key no longer appears missing after update",
   "changelog": [
-    "FIXED: Updates and downloads restored — release channel moved to public SideKick_PS-Releases repo after source repo went private",
+    "FIXED: GoCardless API token no longer appears missing after update — credential lookup now falls back to the legacy SideKick_PS store when the SideKick_GC store has no token",
+    "FIXED: Payment plan payments now appear in the album after scheduling — ProSelect payment dialog is closed before the album reload (was failing with 'Application Busy')",
+    "Previous (v3.0.31): Updates and downloads restored — release channel moved to public SideKick_PS-Releases repo after source repo went private",
     "Previous (v3.0.30): Phone E.164 normalisation fix; auto-detect country code from Windows locale",
     "Previous (v3.0.30): GHL invoice creation no longer blocked for contacts without an email address",
     "Previous (v3.0.30): Webhook now fires on --update-invoice path (re-syncs), not only on first-time syncs",
