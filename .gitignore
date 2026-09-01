@@ -1,0 +1,12 @@
+# Credentials & config - never commit
+credentials.json
+ghl_credentials.json
+*.ini
+.env
+.env.*
+secrets.env
+backups/
+
+# Local build/IDE noise
+__pycache__/
+*.pyc
