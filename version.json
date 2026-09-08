@@ -1,15 +1,19 @@
 {
-  "version": "3.0.32",
-  "build_date": "2026-08-28",
+  "version": "3.1.2",
+  "build_date": "2026-09-08",
   "download_url": "https://github.com/GuyMayer/SideKick_PS-Releases/releases/latest/download/SideKick_PS_Setup.exe",
-  "release_notes": "GoCardless token fix — API key no longer appears missing after update",
+  "release_notes": "Fixes GHL reporting 'API Key Invalid' with a stale saved key, fixes log-upload 401 errors by moving all uploads to one verified Gist token, and shows the rejected key's fingerprint on failed permission tests",
   "changelog": [
-    "FIXED: GoCardless API token no longer appears missing after update — credential lookup now falls back to the legacy SideKick_PS store when the SideKick_GC store has no token",
-    "FIXED: Payment plan payments now appear in the album after scheduling — ProSelect payment dialog is closed before the album reload (was failing with 'Application Busy')",
-    "Previous (v3.0.31): Updates and downloads restored — release channel moved to public SideKick_PS-Releases repo after source repo went private",
-    "Previous (v3.0.30): Phone E.164 normalisation fix; auto-detect country code from Windows locale",
-    "Previous (v3.0.30): GHL invoice creation no longer blocked for contacts without an email address",
-    "Previous (v3.0.30): Webhook now fires on --update-invoice path (re-syncs), not only on first-time syncs",
-    "Previous (v3.0.30): Order Webhook orderId guaranteed unique via invoice_id fallback"
+    "FIXED: A stale API key saved next to the app could shadow the key saved in Settings, so GHL kept saying 'API Key Invalid' even after pasting a fresh key — Settings now wins and the stale copy is archived automatically",
+    "FIXED: 'Send Logs' failed with 'Upload Failed - 401 Bad credentials' — all log uploads now go through a single verified Gist token via the SideKick CLI",
+    "IMPROVED: When the GHL permission test rejects a key, the popup now shows the rejected key's fingerprint (pit-...XXXX) so a stale key is instantly recognisable",
+    "IMPROVED (internal): The build aborts automatically if the log-upload token has been revoked by GitHub",
+    "IMPROVED: A failed GHL permission test now logs the 401/403 error details and a redacted key fingerprint, and uploads them automatically when Auto-Send Logs is on — so connection issues can be diagnosed without asking for the key",
+    "NEW: GHL Test button now runs a full permission check — verifies all 13 API scopes SideKick uses and reports per-feature results (invoice sync, pipeline, contact sheet, room capture email, Cardly) instead of just 'key is live'",
+    "NEW: Clear fix instructions — a missing scope names the exact scope to enable in GHL → Settings → Private Integrations; invalid key and wrong-location are told apart explicitly",
+    "IMPROVED: Sync failures with 401/403 now self-diagnose — the error message says which scope is missing (or if the key/location is wrong) instead of a generic 'API authentication failed'",
+    "IMPROVED (internal): All GHL API calls route through a single shared client with unified retries, PII-redacted logging; duplicate logging/config code removed",
+    "FIXED: Doubled pit- token paste no longer breaks GHL auth",
+    "Previous (v3.0.34): Invoice sync no longer reports success when the GHL invoice fails to create"
   ]
 }

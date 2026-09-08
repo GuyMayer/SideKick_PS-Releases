@@ -17,6 +17,67 @@ SideKick_GC changes are tracked here alongside SideKick_PS from v2.5.53 onward.
 SideKick_GC can also run independently — its own CHANGELOG.md covers standalone releases.
 -->
 
+## v3.1.2 (2026-09-08) — Self-healing GHL credentials + single Gist upload path
+
+### Fixed
+
+- **Stale API key shadowing.** A `credentials.json` saved next to the app
+  could shadow the key saved in Settings (`%APPDATA%`), so GHL kept reporting
+  "API Key Invalid" even after a fresh key was pasted. Settings now wins, and
+  the stale install-folder copy is archived automatically (`.stale-<timestamp>`).
+- **Log upload 401.** "Send Logs" failed with "Upload Failed - 401 Bad
+  credentials" because the app embedded a second Gist token that GitHub had
+  revoked. All uploads now go through the SideKick CLI's verified token — one
+  token, one code path (`sync-invoice --upload-logs`).
+
+### Improved
+
+- **Rejected-key fingerprint.** When the GHL permission test rejects a key,
+  the popup now shows the rejected key's fingerprint (`pit-...XXXX`), making a
+  stale key instantly recognisable.
+- **Build guard.** The build aborts automatically if GitHub has revoked the
+  log-upload token.
+
+## v3.0.34 (2026-09-05) — Invoice sync silent-failure fix
+
+### Fixed
+
+- **Invoice sync no longer reports success when no GHL invoice is created.**
+  `create_ghl_invoice()` returned `None` for orders with no payment lines, no
+  product items, or no invoice items, and HTTP/network errors were recorded
+  but never flipped the overall success flag — so the toolbar showed
+  "Sync Complete" with no invoice behind it. All three skip cases now return
+  an explicit failure dict, and `_process_sync` propagates any invoice failure
+  into the overall result, showing "Sync Failed" with the reason.
+
+## v3.0.33 (2026-09-04) — Lead Flow mirror (Phase A) + credential fix
+
+### Improvements
+
+- **New "Lead Flow" tab in Settings** for mirroring invoice syncs to a
+  second, separate GHL account (Lead Flow). Holds the secondary Location ID,
+  API key (stored in `credentials.json` alongside the primary key), a
+  **Test** button that distinguishes an invalid key (401) from a key without
+  access to the location (403), a mirror-tag selector fed from the master
+  GHL tag list, and two toggles: **Enable mirror** and **Totals only**
+  (off = detailed product lines from ProSelect; on = single sale + payment
+  totals).
+- **Mirror tag filter wired into the sync flow.** After a successful invoice
+  sync, SideKick checks the master-GHL contact for the configured mirror tag
+  and logs the Lead Flow mirror outcome. The mirror write itself lands in
+  Phase B (pending the Lead Flow account API key).
+- **"Lead Flow ID" contact custom field** created in the master GHL location
+  and registered in the sync config. It will hold the Lead Flow
+  location/contact ID and doubles as the "is a Lead Flow client" flag.
+- **Lead Flow ID field selector.** The Lead Flow tab has a dropdown listing
+  the master GHL contact custom fields (with a refresh button), so the field
+  used to store the Lead Flow ID is user-selectable instead of hard-coded.
+  The chosen field name is saved to `[GHL] LeadFlowIDField` and resolved to
+  its field ID at sync time (falling back to the default field).
+- **Credentials writer hardened.** Settings save now writes the full
+  credential set (GoCardless token, Cardly fields, Gist token, secondary
+  key/location) instead of truncating `credentials.json`.
+
 ## v3.0.32 (2026-08-28) — GoCardless token fix
 
 ### Fixed
