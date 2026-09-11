@@ -10,3 +10,7 @@ backups/
 # Local build/IDE noise
 __pycache__/
 *.pyc
+# sweep-required literals
+*_credentials.json
+*.env
+secrets.*
