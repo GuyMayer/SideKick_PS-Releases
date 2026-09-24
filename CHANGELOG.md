@@ -17,6 +17,33 @@ SideKick_GC changes are tracked here alongside SideKick_PS from v2.5.53 onward.
 SideKick_GC can also run independently — its own CHANGELOG.md covers standalone releases.
 -->
 
+## Unreleased
+
+### Fixed
+
+- **Toolbar buttons doing nothing after ProSelect starts.** When the script
+  was started before ProSelect (e.g. login autostart), it stayed unelevated
+  while ProSelect ran elevated, so Windows UIPI silently dropped all injected
+  keystrokes into ProSelect — menu-driven toolbar buttons (Sort, Review
+  Order, Quick Print, Print/PDF) did nothing and dropdown menus never
+  opened, until the script was restarted while ProSelect was running. The
+  script now watches for ProSelect and relaunches itself elevated the moment
+  ProSelect appears.
+
+## v3.1.3 (2026-09-09) — Verified payment-window close before album reload
+
+### Fixed
+
+- **Add Payment / Review Orders windows blocking reload.** After writing new
+  payment lines directly into the .psa, ProSelect's "Add Payment" (Cancel or
+  Close, depending on whether a payline entry was in progress) and "Review
+  Orders" windows sometimes stayed open, causing `openAlbum` to fail
+  repeatedly with "Application Busy" and leaving the album stale with the new
+  payments invisible until the file was manually closed and reopened. Closing
+  now clicks the real Cancel/Close button on each window and verifies with
+  `WinWaitClose` that it actually closed before the reload is attempted,
+  instead of blindly sending Escape on a fixed timer.
+
 ## v3.1.2 (2026-09-08) — Self-healing GHL credentials + single Gist upload path
 
 ### Fixed
