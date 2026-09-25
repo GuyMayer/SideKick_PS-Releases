@@ -1,10 +1,12 @@
 ﻿{
-  "version": "3.1.3",
-  "build_date": "2026-09-23",
+  "version": "3.1.5",
+  "build_date": "2026-09-25",
   "download_url": "https://github.com/GuyMayer/SideKick_PS-Releases/releases/latest/download/SideKick_PS_Setup.exe",
-  "release_notes": "Fixes ProSelect's Add Payment / Review Orders windows sometimes staying open after a payment plan was written, blocking the album reload needed to show the new payment lines",
+  "release_notes": "v3.1.5 release",
   "changelog": [
-    "FIXED: ProSelect's Add Payment / Review Orders windows sometimes stayed open after a payment plan was written, blocking the album reload needed to show the new payment lines — closing now clicks the real Cancel/Close buttons and verifies each window has actually closed before reloading, instead of blindly sending Escape",
+    "v3.1.5 (2026-09-25): v3.1.5 release",
+    "Previous (v3.1.4): One-click Quick Publish now tags and publishes the GitHub release automatically — no version or commit-message prompts; release notes are JSON-escaped and version.json stays the single source of truth",
+    "Previous (v3.1.3): Fixes ProSelect's Add Payment / Review Orders windows sometimes staying open after a payment plan was written, blocking the album reload needed to show the new payment lines",
     "Previous (v3.1.2): Fixes GHL reporting 'API Key Invalid' with a stale saved key, fixes log-upload 401 errors by moving all uploads to one verified Gist token, and shows the rejected key's fingerprint on failed permission tests"
   ]
 }

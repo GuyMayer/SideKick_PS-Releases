@@ -17,7 +17,15 @@ SideKick_GC changes are tracked here alongside SideKick_PS from v2.5.53 onward.
 SideKick_GC can also run independently — its own CHANGELOG.md covers standalone releases.
 -->
 
-## Unreleased
+## v3.1.4 (2026-09-25)
+
+### Improved
+
+- **One-click Quick Publish.** The dev Quick Publish button now bumps the
+  patch version automatically, rolls this changelog, tags the release, and
+  publishes it to GitHub — no manual version edit or changelog step first.
+
+## v3.1.3 (2026-09-09) — Verified payment-window close before album reload
 
 ### Fixed
 
@@ -29,10 +37,6 @@ SideKick_GC can also run independently — its own CHANGELOG.md covers standalon
   opened, until the script was restarted while ProSelect was running. The
   script now watches for ProSelect and relaunches itself elevated the moment
   ProSelect appears.
-
-## v3.1.3 (2026-09-09) — Verified payment-window close before album reload
-
-### Fixed
 
 - **Add Payment / Review Orders windows blocking reload.** After writing new
   payment lines directly into the .psa, ProSelect's "Add Payment" (Cancel or
