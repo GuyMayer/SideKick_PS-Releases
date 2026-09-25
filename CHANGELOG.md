@@ -17,7 +17,7 @@ SideKick_GC changes are tracked here alongside SideKick_PS from v2.5.53 onward.
 SideKick_GC can also run independently — its own CHANGELOG.md covers standalone releases.
 -->
 
-## v3.1.4 (2026-09-25)
+## v3.1.5 (2026-09-25)
 
 ### Improved
 
