@@ -17,6 +17,52 @@ SideKick_GC changes are tracked here alongside SideKick_PS from v2.5.53 onward.
 SideKick_GC can also run independently — its own CHANGELOG.md covers standalone releases.
 -->
 
+## Unreleased
+
+### Added
+
+- **Payment reference on the bank transfer slide.** The Display tab's Bank
+  Transfer Details box gains a **Reference** dropdown under Acc No — Shoot
+  Number, Surname, Date of Shoot, Album Name, Ad hoc, or (none) — plus an ad-hoc
+  text box enabled only while Ad hoc is selected. The reference is resolved live
+  each time the display opens, so it follows the album currently open in
+  ProSelect, and appears as a "Reference" line under the account number. Values
+  are capped at 18 characters to match UK bank reference fields. The resolver
+  lives in `Inc_BankRef.ahk` with its own test harness
+  (`tests/test_bank_reference.ahk`).
+
+- **Amend / Defer payment-plan flow.** The GoCardless toolbar dialog gains an
+  "Amend / Defer" button (gated by `[GoCardless] AmendEnabled`). It reconciles
+  the album's DD payment lines against GoCardless's recorded plans and offers a
+  dropdown — Defer by N months, Rebuild plan, Put on Hold, Cancel plan,
+  Recreate as-is (or Restart after Hold when held). Deferrals shift every line
+  by the chosen months and recreate the schedule with each line's explicit date
+  preserved; already-collected instalments are dropped, and when the two
+  schedules disagree the user picks which is correct. Hold/cancel apply
+  `gc-on-hold` / `gc-plan-cancelled` GHL tags and keep Payment Status current.
+
+- **Amend / Defer toggle in GoCardless settings.** A new on/off slider under
+  Mandate Notifications enables or disables the "Amend / Defer" toolbar button,
+  persisted as `[GoCardless] AmendEnabled`.
+
+### Fixed
+
+- **Defer flattened dates and skipped a month.** A schedule whose paylines have
+  weekend-adjusted days (21st with occasional 22/23) was falsely split into a
+  deposit + shifted schedule, so deferring jumped a month forward and rebuilt
+  every date from a single day (all 23rd). The split now triggers only on a
+  differing amount, and every payline's explicit date is preserved verbatim.
+- **Replace dropped overlapping payment lines.** `write_psa_payments` deduped
+  new lines against the existing block *before* clearing it, so a replace whose
+  dates overlapped the old schedule silently lost those lines. Dedupe is now
+  skipped when clearing the block or the whole method.
+- **GHL pull failures were invisible.** `FetchGHLData` (the ProSelect client
+  pull) wrote nothing to the debug log on a failed GHL request, so a user's
+  invalid API key (401) left no diagnostic trail and nothing to auto-upload.
+  Every failure now writes a redacted line to the debug log, and the first 401
+  in a session auto-runs the scope check so an invalid key is recorded and
+  uploaded.
+
 ## v3.1.5 (2026-09-25)
 
 ### Improved
