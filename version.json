@@ -1,9 +1,10 @@
 ﻿{
-  "version": "3.1.8",
-  "build_date": "2026-09-28",
+  "version": "3.1.9",
+  "build_date": "2026-09-30",
   "download_url": "https://github.com/GuyMayer/SideKick_PS-Releases/releases/latest/download/SideKick_PS_Setup.exe",
-  "release_notes": "v3.1.8 release",
+  "release_notes": "v3.1.9 release",
   "changelog": [
+    "v3.1.9 (2026-09-30): In-app Manual button and user manual shipped with the installer",
     "v3.1.8 (2026-09-28): v3.1.8 release",
     "Previous (v3.1.7): v3.1.7 (2026-09-28): v3.1.7 release",
     "Previous (v3.1.6): v3.1.6 (2026-09-27): v3.1.6 release",
