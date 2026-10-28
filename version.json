@@ -1,9 +1,11 @@
 ﻿{
-  "version": "3.1.10",
-  "build_date": "2026-10-21",
+  "version": "3.1.12",
+  "build_date": "2026-10-28",
   "download_url": "https://github.com/GuyMayer/SideKick_PS-Releases/releases/latest/download/SideKick_PS_Setup.exe",
-  "release_notes": "v3.1.10 release",
+  "release_notes": "v3.1.12 release",
   "changelog": [
+    "v3.1.12 (2026-10-28): v3.1.12 release",
+    "Previous (v3.1.11): v3.1.11 (2026-10-28): Charge-date fix in the GoCardless dialog, PayDay hides dates too soon for Direct Debit, Stripe payment QR slide, payment windows close reliably, bundles SideKick_GC v1.11.0",
     "v3.1.10 (2026-10-21): v3.1.10 release",
     "Previous (v3.1.9): v3.1.9 (2026-09-30): In-app Manual button and user manual shipped with the installer",
     "v3.1.8 (2026-09-28): v3.1.8 release",

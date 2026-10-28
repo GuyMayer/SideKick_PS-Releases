@@ -17,7 +17,63 @@ SideKick_GC changes are tracked here alongside SideKick_PS from v2.5.53 onward.
 SideKick_GC can also run independently — its own CHANGELOG.md covers standalone releases.
 -->
 
-## Unreleased
+## v3.1.11 (2026-10-28) — Charge-date fix, Stripe QR slide, bundles SideKick_GC v1.11.0
+
+### Bundled
+
+- **SideKick_GC v1.11.0.** The installer now ships SideKick_GC v1.11.0: the
+  GHL Setup Wizard keeps and links field mappings instead of leaving them
+  blank, launch is faster (fewer reads on start-up), the Mandates tab is
+  reworked into two views (Finished plans / No plans ever) with a Balance
+  column, a new `--next-charge-date` CLI command, and a local mandate history
+  cache. See the SideKick_GC changelog for detail.
+
+### Added
+
+- **Charge-date fix in the GoCardless dialog.** When silent plan creation
+  fails because the first payment date is earlier than the mandate's
+  `next_possible_charge_date`, the error dialog now shows the earliest valid
+  date and offers a **Fix** button that moves only the first payment
+  (downpayment) to that date, keeping the remaining payments on their set
+  dates. Fix re-runs plan creation once and falls through to normal PSA
+  injection.
+- **PayDay dropdown hides dates too soon for Direct Debit.** When the current
+  month is selected in the Payment Calculator, the day-of-month dropdown now
+  hides days inside the 4-working-day BACS lead window (weekends skipped), using
+  the GoCardless mandate's `next_possible_charge_date` as the source of truth
+  when available (e.g. on 15 Dec, days 1–18 are hidden). Future months show
+  every day, and when the working-day cutoff rolls past the end of the month the
+  picker falls back to next month.
+- **Stripe payment QR slide.** The fullscreen Display slideshow can show a QR
+  code that opens a Stripe payment link for the first Stripe payment line on
+  the album. Set up in Settings → Display → Stripe Payment (secret key, saved
+  automatically, with a Test Connection button). SideKick checks that
+  ProSelect has a Stripe pay type and says how to add it if not; it never
+  changes ProSelect itself.
+
+### Fixed
+
+- **Fix replay no longer leaves a duplicate payline.** When the charge-date
+  Fix re-ran plan creation, the album write-back ran in append mode and kept
+  the original first payment alongside the corrected one. The Fix path now
+  clears the GoCardless DD lines in the group before writing the fixed
+  schedule.
+- **Bump / split-first replays clear the same way.** The DATES_STALE
+  bump-months and split-first retries had the same duplicate-payline risk and
+  now use the same clear-then-write behaviour.
+- **Auto-prompt "Set Up PayPlan" launched with no mandate.** The post-sync
+  GoCardless prompt's "Set Up PayPlan" branch launched the SideKick_GC GUI
+  without `--mandate-id`, so its "Create Payment Plan" button failed with
+  "No Mandate" and no plan was created. It now passes the mandate ID through.
+- **Payment windows could stick open after Schedule Payments.** ProSelect shows
+  the Add Payment / Review Orders dialogs as modals while it is still processing
+  the injected paylines, so a close click could land (button flashed) while the
+  app was too busy to act on it, leaving both windows open. The close sequence
+  now activates each window before clicking and retries for up to 30 seconds
+  with `SetControlDelay -1`, instead of three short fixed attempts, so the click
+  takes as soon as ProSelect is no longer busy.
+
+## v3.1.10 (2026-10-21)
 
 ### Added
 
@@ -30,7 +86,6 @@ SideKick_GC can also run independently — its own CHANGELOG.md covers standalon
   are capped at 18 characters to match UK bank reference fields. The resolver
   lives in `Inc_BankRef.ahk` with its own test harness
   (`tests/test_bank_reference.ahk`).
-
 - **Amend / Defer payment-plan flow.** The GoCardless toolbar dialog gains an
   "Amend / Defer" button (gated by `[GoCardless] AmendEnabled`). It reconciles
   the album's DD payment lines against GoCardless's recorded plans and offers a
@@ -47,6 +102,16 @@ SideKick_GC can also run independently — its own CHANGELOG.md covers standalon
 
 ### Fixed
 
+- **Pay Type defaulted to the wrong method.** The Payment Calculator's Pay Type
+  dropdown pre-selected the first cached method (often "Credit Card"), so a
+  GoCardless plan opened with the wrong type. It now picks the first method
+  containing "GoCardless", "Direct Debit", or "DD" (case-insensitive) via
+  `BuildPayTypeList()`, falling back to the first item when none match.
+
+- **"Gocardles DD" typo in the default pay type.** The `Settings_DefaultPayType`
+  default was misspelled "Gocardles DD" (missing "s", lowercase "c"). Corrected
+  to "GoCardless DD" in the schema, global default, and INI template.
+
 - **Defer flattened dates and skipped a month.** A schedule whose paylines have
   weekend-adjusted days (21st with occasional 22/23) was falsely split into a
   deposit + shifted schedule, so deferring jumped a month forward and rebuilt
@@ -62,6 +127,14 @@ SideKick_GC can also run independently — its own CHANGELOG.md covers standalon
   Every failure now writes a redacted line to the debug log, and the first 401
   in a session auto-runs the scope check so an invalid key is recorded and
   uploaded.
+- **Saved credentials could vanish after a truncated write.**
+  `SaveGHLCredentials` wrote `credentials.json` by delete-then-append with no
+  backup, so an interrupted write could leave it empty and permanently wipe the
+  GHL API key and GoCardless token. It now writes atomically (temp file + rename)
+  and a new `CheckCredentialsHealth()` restores the file from `.lastgood` on
+  launch. The Python credential readers (`cardly_send_card`, `upload_ghl_media`,
+  `build_ghl_production_pipeline`) now read `%APPDATA%\SideKick_PS` first, so a
+  stale install-folder copy can no longer shadow the saved key.
 
 ## v3.1.5 (2026-09-25)
 
