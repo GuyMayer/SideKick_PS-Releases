@@ -17,6 +17,71 @@ SideKick_GC changes are tracked here alongside SideKick_PS from v2.5.53 onward.
 SideKick_GC can also run independently — its own CHANGELOG.md covers standalone releases.
 -->
 
+## Unreleased (2026-11-02)
+
+### Changed
+
+- **Searchable dropdowns across Settings.** Every dropdown in the Settings
+  window (GHL contact/opp tags, Lead Flow, Print, Cardly, GoCardless templates,
+  Toolbar, Display, Sounds, editor) now opens a dark popup with a **Search…**
+  box instead of the native list. Typing filters; Up/Down/Enter/Esc work.
+  Tag and template lists add **(None)** (clears the value) and **(refresh)**
+  (reloads the list from GHL and reopens the popup). The separate 🔄 / Refresh /
+  ▾ buttons are removed. Free text is still accepted in the tag, template and
+  folder boxes (Enter with no match keeps what you typed). Implemented in the
+  new `Inc_DropPicker.ahk`; each field keeps its own variable and g-label.
+
+- **Log retention extended to 3 months.** Debug logs are kept for 90 days (was
+  7) to support development diagnostics.
+
+### Fixed
+
+- **DarkMsgBox buttons clipped long labels.** Button width was fixed at
+  100×DPI, so labels like "Start From Next Available Date" were cut off. Buttons
+  now auto-size to their label and the window widens to fit (one fix covers all
+  DarkMsgBox dialogs).
+- **Payment Calculator reported success on a clobbered write.** `UpdatePS`
+  verified only that *some* payment line survived the ProSelect auto-backup
+  race; a save that kept just the deposit still passed (McIntosh-Burrowes
+  P26094P — 8 DD lines lost on 2026-09-07). It now checks the payment count
+  against the number written and retries on a shortfall.
+- **GoCardless flow didn't record the pay frequency.** Plans built from the
+  GoCardless button wrote the paylines but no `recurring` value, so a rebuild
+  had no record of monthly/weekly/bi-weekly/4-weekly. The frequency is now
+  inferred from the payline gaps (`GC_InferRecurring`) and written to the album
+  meta, and `GC_PersistPaylinesToIni` infers it instead of defaulting to a
+  possibly-stale "Monthly".
+- **GHL email template refresh always failed if a template name contained
+  "error".** The refresh handlers (GoCardless email, GoCardless SMS, Print room
+  capture, Print PDF, silent wizard refresh) treated any occurrence of "ERROR"
+  in the output as a failure, so a template called "Email error appologie"
+  rejected the whole list. They now only fail on a line starting `ERROR|` or
+  `API_ERROR|`, which is what `sync_ps_invoice` prints on a real failure.
+
+- **GoCardless duplicate first payment on weekend roll-forward.** When
+  GoCardless silently moved the first charge date from a Sunday to the next
+  working day (Monday), the plan injection appended the shifted payline instead
+  of replacing the original, so an 18-payment schedule became 19 Direct Debit
+  lines (£94.28 over-collected) and the balance no longer ended at zero. The
+  injection now compares the schedule GoCardless returns against the album's
+  paylines and, on any date/amount drift, replaces the Direct Debit lines
+  (`--clear-method-all`) rather than appending. (Papworth P26093P, 2026-11-02)
+- **Balance-zero guard after GoCardless injection.** After the plan is written
+  back into the album, SideKick_PS now sums the Direct Debit lines and checks
+  them against the scheduled balance. A mismatch raises a "Pay Plan Created —
+  Check Balance" warning so the schedule can be corrected (extend/shorten the
+  term) instead of silently ending short or over.
+- **Cardly artwork upload 403 (AWS WAF).** `api.card.ly/v2` sits behind AWS WAF
+  filtering by JA4 TLS fingerprint; Python `requests` was blocked with a bare
+  403, so every Cardly call failed and artwork upload reported
+  "Could not get template's base media ID". Cardly-bound HTTP calls now use
+  `curl_cffi` with `impersonate="edge"`. GHL calls remain on `requests`.
+- **Stripe key save could wipe `credentials.json`.** `save_stripe_key` wrote
+  non-atomically and reset to an empty dict when the read failed, producing a
+  credentials file containing only `stripe_key_b64`. It now backs up a corrupt
+  or unreadable file to `.broken_<timestamp>` and writes via a temp file +
+  atomic rename, so no other credential is silently lost.
+
 ## v3.1.11 (2026-10-28) — Charge-date fix, Stripe QR slide, bundles SideKick_GC v1.11.0
 
 ### Bundled
