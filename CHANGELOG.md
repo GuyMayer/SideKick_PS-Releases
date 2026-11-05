@@ -9,8 +9,12 @@ AI INSTRUCTIONS - When publishing a new version:
    - "build_date": current date (YYYY-MM-DD)
    - "release_notes": brief summary
    - "changelog": array of changes (NEW/FIX/IMPROVED prefixes)
-3. Commit and push both files to Git
-4. Run the build script to compile and create installer
+3. Regenerate the hosted changelog page:
+   python _Tools/gen_changelog_html.py, then commit and push
+   SideKick_PS_Website (GitHub Pages serves it at
+   https://ps.ghl-sidekick.com/changelog.html)
+4. Commit and push both files to Git
+5. Run the build script to compile and create installer
 
 NOTE: SideKick_PS now includes SideKick_GC (GoCardless) as a unified package.
 SideKick_GC changes are tracked here alongside SideKick_PS from v2.5.53 onward.
@@ -20,6 +24,13 @@ SideKick_GC can also run independently — its own CHANGELOG.md covers standalon
 ## Unreleased (2026-11-02)
 
 ### Changed
+
+- **What's New dialog replaced with a hosted changelog page.** The
+  version-change popup (unreliable parsing of `version.json`) is gone.
+  A new **📝 Changelog** button in the Settings window opens the release
+  notes in the browser, HTML-formatted, at
+  https://ps.ghl-sidekick.com/changelog.html (regenerated from this file by
+  `_Tools/gen_changelog_html.py`).
 
 - **Searchable dropdowns across Settings.** Every dropdown in the Settings
   window (GHL contact/opp tags, Lead Flow, Print, Cardly, GoCardless templates,
