@@ -21,7 +21,46 @@ SideKick_GC changes are tracked here alongside SideKick_PS from v2.5.53 onward.
 SideKick_GC can also run independently — its own CHANGELOG.md covers standalone releases.
 -->
 
-## Unreleased (2026-11-02)
+## v3.1.16 (2026-11-24) — Unified GoCardless lookup, bundles SideKick_GC v1.15.0
+
+### Added
+
+- **Settled-order acknowledgement on the GoCardless button.** When the
+  client has no active mandate and the album's payment lines cover the order
+  total (balance £0.00), the GC button now shows an "Order Settled — No
+  Mandate Needed" dialog listing the payment history (dates, methods,
+  amounts) instead of assuming the client has no history. A **Send Mandate
+  Request** button remains so a mandate can still be requested for future
+  orders. New `album_balance.py` probe (per-group order total vs payments)
+  powers the check, wired into the unified CLI as `album-balance`.
+
+### Fixed
+
+- **GoCardless button now finds clients the same way as SideKick_GC.**
+  It checks email, then name, then the shoot reference, so a partner's
+  mandate paying the order is found and no "Same client?" prompt appears
+  for a shoot-reference match. A new SideKick launch button is on the toolbar.
+
+- **"Order Settled" no longer shown for unpaid orders.** The settled check
+  now counts only money actually received; proposed Direct Debit lines,
+  account corrections and future-dated lines are ignored.
+
+- **Cancel plan now keeps already-collected DD paylines.** The Amend /
+  Defer "Cancel plan" action previously cleared every GoCardless DD line
+  from the album, including instalments already collected. It now keeps the
+  collected lines (the count shown in the dialog) and clears only the
+  uncollected ones. `write_psa_payments.py` gains `--keep-first N` (with
+  `--clear-method-all`, keep the N matching lines with the earliest date).
+
+- **Amend defer/rebuild appended instead of replacing — doubled schedules.**
+  A 2026-11-02 change dropped the `--clear-method-all` flag from the replace
+  path, so deferred plans were appended onto the old schedule (Bolton
+  P26039P: 20 old + 4 new lines, balance guard fired). Replace/rebuild now
+  clears the method lines again, keeps the collected head via `--keep-first`,
+  and the post-injection balance check compares against the plan balance plus
+  the kept collected lines. The defer months dropdown now shows the resulting
+  start date per option ("2 months — February, from 01/02/2027") and only
+  appears when "Defer by N months" is selected.
 
 ### Changed
 
@@ -29,7 +68,7 @@ SideKick_GC can also run independently — its own CHANGELOG.md covers standalon
   version-change popup (unreliable parsing of `version.json`) is gone.
   A new **📝 Changelog** button in the Settings window opens the release
   notes in the browser, HTML-formatted, at
-  https://ps.ghl-sidekick.com/changelog.html (regenerated from this file by
+  <https://ps.ghl-sidekick.com/changelog.html> (regenerated from this file by
   `_Tools/gen_changelog_html.py`).
 
 - **Searchable dropdowns across Settings.** Every dropdown in the Settings
